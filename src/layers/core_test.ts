@@ -52,7 +52,7 @@ describe('Dropout Layer: Symbolic', () => {
 });
 
 describeMathCPUAndGPU('Dropout Layer', () => {
-  it('tensor', () => {
+  describe('tensor', () => {
     const inputShape = [2, 3, 4];
     const trainingValues = [false, true];
     const dropoutRates = [0, 0.5];
@@ -233,7 +233,7 @@ describeMathCPUAndGPU('Dense Layer: Tensor', () => {
                const expectedShape = input.shape.slice();
                expectedShape[expectedShape.length - 1] = units;
                let expectedOutput;
-               if (K.ndim(input) === 2) {
+               if (input.rank === 2) {
                  expectedOutput = tensor2d(
                      pyListRepeat(
                          expectedElementValue, arrayProd(expectedShape)),

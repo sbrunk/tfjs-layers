@@ -12,7 +12,7 @@
 
 // tslint:disable:max-line-length
 import * as tfc from '@tensorflow/tfjs-core';
-import {doc, io, Optimizer, Scalar, serialization, Tensor, Tensor1D, tensor1d, util} from '@tensorflow/tfjs-core';
+import {doc, io, ModelPredictConfig, Optimizer, Scalar, serialization, Tensor, Tensor1D, tensor1d, util} from '@tensorflow/tfjs-core';
 
 import * as K from '../backend/tfjs_backend';
 import {BaseLogger, Callback, CallbackList, CustomCallbackConfig, disposeTensorsInLogs, History, standardizeCallbacks, UnresolvedLogs} from '../callbacks';
@@ -20,8 +20,9 @@ import {NotImplementedError, RuntimeError, ValueError} from '../errors';
 import * as losses from '../losses';
 import * as Metrics from '../metrics';
 import * as optimizers from '../optimizers';
-import {LossOrMetricFn, NamedTensorMap, Shape} from '../types';
-import {count, singletonOrArray, unique} from '../utils/generic_utils';
+import {LossOrMetricFn, NamedTensorMap, Shape, SymbolicTensor} from '../types';
+import {count, pyListRepeat, singletonOrArray, unique} from '../utils/generic_utils';
+import {printSummary} from '../utils/layer_utils';
 import {range} from '../utils/math_utils';
 import {LayerVariable} from '../variables';
 
@@ -318,17 +319,19 @@ function sliceArrays(
  */
 export function sliceArraysByIndices(
     arrays: Tensor|Tensor[], indices: Tensor1D): Tensor|Tensor[] {
-  if (arrays == null) {
-    return null;
-  } else if (Array.isArray(arrays)) {
-    return arrays.map(
-        array => (sliceArraysByIndices(array, indices) as Tensor));
-  } else {
-    // TODO(cais): indices should be oa pre-constructed Tensor1D to avoid
-    //   tensor1d() calls.
-    return K.gather(
-        arrays, indices.dtype === 'int32' ? indices : indices.toInt());
-  }
+  return tfc.tidy(() => {
+    if (arrays == null) {
+      return null;
+    } else if (Array.isArray(arrays)) {
+      return arrays.map(
+          array => (sliceArraysByIndices(array, indices) as Tensor));
+    } else {
+      // TODO(cais): indices should be a pre-constructed Tensor1D to avoid
+      //   tensor1d() calls.
+      return K.gather(
+          arrays, indices.dtype === 'int32' ? indices : indices.toInt());
+    }
+  });
 }
 
 /**
@@ -455,19 +458,6 @@ function collectMetrics(
 export enum ModelLoggingVerbosity {
   SILENT = 0,
   VERBOSE = 1
-}
-
-
-export interface ModelPredictConfig {
-  /**
-   * Batch size (Integer). If unspecified, it will default to 32.
-   */
-  batchSize?: number;
-
-  /**
-   * Verbosity mode. Defaults to false.
-   */
-  verbose?: boolean;
 }
 
 export interface ModelEvaluateConfig {
@@ -626,7 +616,7 @@ export interface ModelCompileConfig {
  *   `Sequential`, `loadModel`.
  */
 @doc({heading: 'Models', subheading: 'Classes'})
-export class Model extends Container {
+export class Model extends Container implements tfc.InferenceModel {
   static className = 'Model';
   optimizer: Optimizer;
   loss: string|string[]|{[outputName: string]: string}|LossOrMetricFn|
@@ -642,6 +632,10 @@ export class Model extends Container {
   private testFunction: (data: Tensor[]) => Scalar[];
   history: History;
 
+  // A public property that can be set by Callbacks to order early stopping
+  // during `fit()` calls.
+  stopTraining: boolean;
+
   metrics: string[]|{[outputName: string]: string};
   metricsNames: string[];
   // Porting Note: `metrics_tensors` in PyKeras is a symbolic tensor. But given
@@ -656,6 +650,54 @@ export class Model extends Container {
 
   constructor(config: ContainerConfig) {
     super(config);
+  }
+
+  /**
+   * Print a text summary of the model's layers.
+   *
+   * The summary includes
+   * - Name and type of all layers that comprise the model.
+   * - Output shape(s) of the layers
+   * - Number of weight parameters of each layer
+   * - If the model has non-sequential-like topology, the inputs each layer
+   *   receives
+   * - The total number of trainable and non-trainable parameters of the model.
+   *
+   * ```js
+   * const input1 = tf.input({shape: [10]});
+   * const input2 = tf.input({shape: [20]});
+   * const dense1 = tf.layers.dense({units: 4}).apply(input1);
+   * const dense2 = tf.layers.dense({units: 8}).apply(input2);
+   * const concat = tf.layers.concatenate().apply([dense1, dense2]);
+   * const output =
+   *     tf.layers.dense({units: 3, activation: 'softmax'}).apply(concat);
+   *
+   * const model = tf.model({inputs: [input1, input2], outputs: output});
+   * model.summary();
+   * ```
+   *
+   * @param lineLength Custom line length, in number of characters.
+   * @param positions Custom widths of each of the columns, as either
+   *   fractions of `lineLength` (e.g., `[0.5, 0.75, 1]`) or absolute number
+   *   of characters (e.g., `[30, 50, 65]`). Each number corresponds to
+   *   right-most (i.e., ending) position of a column.
+   * @param printFn Custom print function. Can be used to replace the default
+   *   `console.log`. For example, you can use `x => {}` to mute the printed
+   *   messages in the console.
+   */
+  @doc({heading: 'Models', subheading: 'Classes'})
+  summary(
+      lineLength?: number, positions?: number[],
+      printFn:
+          // tslint:disable-next-line:no-any
+      (message?: any, ...optionalParams: any[]) => void = console.log) {
+    if (!this.built) {
+      throw new ValueError(
+          `This model has never been called, thus its weights have not been ` +
+          `created yet. So no summary can be displayed. Build the model ` +
+          `first (e.g., by calling it on some test data).`);
+    }
+    printSummary(this, lineLength, positions, printFn);
   }
 
   /**
@@ -974,6 +1016,98 @@ export class Model extends Container {
   }
 
   /**
+   * Execute intrenal tensors of the model with input data feed.
+   * @param inputs Input data feed. Must match the inputs of the model.
+   * @param outputs Names of the output tensors to be fetched. Must match
+   *   names of the SymbolicTensors that belong to the graph.
+   * @returns Fetched values for `outputs`.
+   */
+  execute(inputs: Tensor|Tensor[]|NamedTensorMap, outputs: string|string[]):
+      Tensor|Tensor[] {
+    if (Array.isArray(outputs) && outputs.length === 0) {
+      throw new ValueError(
+          '`outputs` is an empty Array, which is not allowed.');
+    }
+
+    const outputsIsArray = Array.isArray(outputs);
+    const outputNames = (outputsIsArray ? outputs as string[] :
+                                          [outputs as string]) as string[];
+    const outputSymbolicTensors = this.retrieveSymbolicTensors(outputNames);
+
+    // Format the input into a FeedDict.
+    const feedDict = new FeedDict();
+    if (inputs instanceof Tensor) {
+      inputs = [inputs as Tensor];
+    }
+    if (Array.isArray(inputs)) {
+      if ((inputs as Tensor[]).length !== this.inputs.length) {
+        throw new ValueError(
+            `The number of inputs provided (${(inputs as Tensor[]).length}) ` +
+            `does not match the number of inputs of this model ` +
+            `(${this.inputs.length}).`);
+      }
+      for (let i = 0; i < this.inputs.length; ++i) {
+        feedDict.add(this.inputs[i], (inputs as Tensor[])[i]);
+      }
+    } else {
+      for (const input of this.inputs) {
+        const tensorValue = (inputs as NamedTensorMap)[input.name];
+        if (tensorValue == null) {
+          throw new ValueError(
+              `No value is provided for the model's input ${input.name}`);
+        }
+        feedDict.add(input, tensorValue);
+      }
+    }
+
+    // Run execution.
+    const executeOutputs = execute(outputSymbolicTensors, feedDict) as Tensor[];
+    return outputsIsArray ? executeOutputs : executeOutputs[0];
+  }
+
+  /**
+   * Retrieve the model's internal symbolic tensors from symbolic-tensor names.
+   */
+  private retrieveSymbolicTensors(symbolicTensorNames: string[]):
+      SymbolicTensor[] {
+    const outputSymbolicTensors: SymbolicTensor[] =
+        pyListRepeat(null, symbolicTensorNames.length);
+    let outputsRemaining = symbolicTensorNames.length;
+    for (const layer of this.layers) {
+      const layerOutputs: SymbolicTensor[] = Array.isArray(layer.output) ?
+          layer.output as SymbolicTensor[] :
+          [layer.output as SymbolicTensor];
+      const layerOutputNames = layerOutputs.map(output => output.name);
+      for (let i = 0; i < symbolicTensorNames.length; ++i) {
+        const index = layerOutputNames.indexOf(symbolicTensorNames[i]);
+        if (index !== -1) {
+          outputSymbolicTensors[i] = layerOutputs[index];
+          outputsRemaining--;
+        }
+        if (outputsRemaining === 0) {
+          break;
+        }
+      }
+      if (outputsRemaining === 0) {
+        break;
+      }
+    }
+
+    if (outputsRemaining > 0) {
+      const remainingNames: string[] = [];
+      outputSymbolicTensors.forEach((tensor, i) => {
+        if (tensor == null) {
+          remainingNames.push(symbolicTensorNames[i]);
+        }
+      });
+      throw new ValueError(
+          `Cannot find SymbolicTensors for output name(s): ` +
+          `${JSON.stringify(remainingNames)}`);
+    }
+    return outputSymbolicTensors;
+  }
+
+  /**
    * Helper method to loop over some data in batches.
    *
    * Porting Note: Not using the functional approach in the Python equivalent
@@ -1148,7 +1282,8 @@ export class Model extends Container {
    * @param callbacks List of callbacks to be called during training.
    * @param valF Function to call for validation.
    * @param valIns List of tensors to be fed to `valF`.
-   * @param shuffle Whether to shuffle the data at the beginning of every epoch.
+   * @param shuffle Whether to shuffle the data at the beginning of every
+   * epoch.
    * @param callbackMetrics List of strings, the display names of the metrics
    *   passed to the callbacks. They should be the concatenation of the
    *   display names of the outputs of `f` and the list of display names
@@ -1227,8 +1362,8 @@ export class Model extends Container {
       doValidation,
       metrics: callbackMetrics,
     });
-    // TODO(cais): Take care of the PyKeras logic of stop_training.
     await callbackList.onTrainBegin();
+    this.stopTraining = false;
     // TODO(cais): Take care of callbacks.validation_data as in PyKeras.
 
     // TODO(cais): Pre-convert feeds for performance as in PyKeras.
@@ -1252,10 +1387,9 @@ export class Model extends Container {
 
         const batches = makeBatches(numTrainSamples, batchSize);
         for (let batchIndex = 0; batchIndex < batches.length; ++batchIndex) {
-          // TODO(cais): tfc.tidy() should not be leaked from the backend.
-          //   Wrap it with a backend function called mathScope.
           const batchLogs: UnresolvedLogs = {};
           await callbackList.onBatchBegin(batchIndex, batchLogs);
+
           tfc.tidy(() => {
             const batchStart = batches[batchIndex][0];
             const batchEnd = batches[batchIndex][1];
@@ -1277,9 +1411,6 @@ export class Model extends Container {
               // TODO(cais): Use scope() to avoid ownership.
             }
 
-            // TODO(cais): Logic for early stopping using
-            //   callback_model.stop_training as in PyKeras.
-
             if (batchIndex === batches.length - 1) {  // Last batch.
               if (doValidation) {
                 const valOuts = this.testLoop(valF, valIns, batchSize);
@@ -1297,6 +1428,10 @@ export class Model extends Container {
 
           await callbackList.onBatchEnd(batchIndex, batchLogs);
           disposeTensorsInLogs(batchLogs);
+
+          if (this.stopTraining) {
+            break;
+          }
           // TODO(cais): return outs as list of Tensor.
         }
 
@@ -1304,8 +1439,9 @@ export class Model extends Container {
       }
       // TODO(cais): Run validation at the end of the epoch.
       await callbackList.onEpochEnd(epoch, epochLogs);
-      // TODO(cais): Logic for early stopping using
-      //   callback_model.stop_training as in PyKeras.
+      if (this.stopTraining) {
+        break;
+      }
     }
     await callbackList.onTrainEnd();
 
@@ -1403,7 +1539,8 @@ export class Model extends Container {
         // Compute total loss.
         for (let i = 0; i < this.lossFunctions.length; ++i) {
           const lossFunction = this.lossFunctions[i];
-          // TODO(cais): Add sample weighting and replace the simple averaging.
+          // TODO(cais): Add sample weighting and replace the simple
+          // averaging.
           const loss = tfc.mean(lossFunction(targets[i], outputs[i])) as Scalar;
           if (i === 0) {
             totalLoss = loss;
@@ -1477,6 +1614,12 @@ export class Model extends Container {
     let valX: Tensor|Tensor[];
     let valY: Tensor|Tensor[];
     let valIns: Tensor[];
+    // A flag to keep track of whether `valIns`, `inputs` and `targets` need
+    // to be memory-disposed prior to returning from this method. This is the
+    // case if `config.validationSplit` is set to a number between 0 and 1, in
+    // which case the input `x` and `y` tensors will be sliced, leading to
+    // allocation of new tensor memory.
+    let needValidationDisposal = false;
     if (config.validationData != null && config.validationData.length > 0) {
       doValidation = true;
       if (config.validationData.length === 2) {
@@ -1513,9 +1656,11 @@ export class Model extends Container {
       inputs = sliceArrays(inputs, 0, splitAt) as Tensor[];
       valY = sliceArrays(targets, splitAt, originalBatchSize) as Tensor[];
       targets = sliceArrays(targets, 0, splitAt) as Tensor[];
+      needValidationDisposal = true;
       // TODO(cais): Once sampleWeights becomes available, slice it to get
       //   valSampleWeights.
       valIns = valX.concat(valY);
+
       // TODO(cais): Add useLearningPhase data properly.
     } else if (config.validationSteps != null) {
       doValidation = true;
@@ -1634,10 +1779,16 @@ export class Model extends Container {
     }
 
     const callbacks = standardizeCallbacks(config.callbacks);
-    return this.fitLoop(
+    const out = await this.fitLoop(
         trainFunction, ins, outLabels, batchSize, config.epochs, config.verbose,
         callbacks, valFunction, valIns, config.shuffle, callbackMetrics, null,
         null, null);
+    if (needValidationDisposal) {
+      valIns.forEach(tensor => tensor.dispose());
+      inputs.forEach(tensor => tensor.dispose());
+      targets.forEach(tensor => tensor.dispose());
+    }
+    return out;
     // TODO(cais): Add value to outLabels.
     // TODO(cais): Add initialEpoch.
   }
@@ -1645,8 +1796,9 @@ export class Model extends Container {
   /**
    * Extract weight values of the model.
    *
-   * @param config: An instance of `io.SaveConfig`, which specifies model-saving
-   *   options such as whether only trainable weights are to be saved.
+   * @param config: An instance of `io.SaveConfig`, which specifies
+   * model-saving options such as whether only trainable weights are to be
+   * saved.
    * @returns A `NamedTensorMap` mapping original weight names (i.e.,
    *   non-uniqueified weight names) to their values.
    */
@@ -1671,8 +1823,8 @@ export class Model extends Container {
    * Save the configuration and/or weights of the Model.
    *
    * An `IOHandler` is an object that has a `save` method of the proper
-   * signature defined. The `save` method manages the storing or transmission of
-   * serialized data ("artifacts") that represent the model's topology and
+   * signature defined. The `save` method manages the storing or transmission
+   * of serialized data ("artifacts") that represent the model's topology and
    * weights onto or via a specific medium, such as file downloads, local
    * storage, IndexedDB in the web browser and HTTP requests to a server.
    * TensorFlow.js provides `IOHandler` implementations for a number of
@@ -1735,13 +1887,14 @@ export class Model extends Container {
    * const saveResults = await model.save('http://my-server/model/upload');
    * ```
    *
-   * @param handlerOrURL An instance of `IOHandler` or a URL-like, scheme-based
-   *   string shortcut for `IOHandler`.
+   * @param handlerOrURL An instance of `IOHandler` or a URL-like,
+   * scheme-based string shortcut for `IOHandler`.
    * @param config Options for saving the model.
    * @returns A `Promise` of `SaveResult`, which summarizes the result of the
    *   saving, such as byte sizes of the saved artifacts for the model's
    *   topology and weight values.
    */
+  @doc({heading: 'Models', subheading: 'Classes', configParamIndices: [1]})
   // tslint:enable:max-line-length
   async save(handlerOrURL: io.IOHandler|string, config?: io.SaveConfig):
       Promise<io.SaveResult> {

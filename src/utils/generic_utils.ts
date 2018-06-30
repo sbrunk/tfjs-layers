@@ -15,6 +15,7 @@ import {DataType, serialization, Tensor} from '@tensorflow/tfjs-core';
 
 import {AssertionError, ValueError} from '../errors';
 import {Shape} from '../types';
+import {LayerVariable} from '../variables';
 // tslint:enable
 
 /**
@@ -409,4 +410,49 @@ export function checkStringTypeUnionValue(
     throw new ValueError(`${value} is not a valid ${label}.  Valid values are ${
         values} or null/undefined.`);
   }
+}
+
+/**
+ * Helper function for verifying the types of inputs.
+ *
+ * Ensures that the elements of `x` are all of type `expectedType`.
+ * Also verifies that the length of `x` is within bounds.
+ *
+ * @param x Object to test.
+ * @param expectedType The string expected type of all of the elements in the
+ * Array.
+ * @param minLength Return false if x.length is less than this.
+ * @param maxLength Return false if x.length is greater than this.
+ * @returns true if and only if `x` is an `Array<expectedType>` with
+ * length >= `minLength` and <= `maxLength`.
+ */
+// tslint:disable:no-any
+export function checkArrayTypeAndLength(
+    x: any, expectedType: string, minLength = 0,
+    maxLength = Infinity): boolean {
+  assert(minLength >= 0);
+  assert(maxLength >= minLength);
+  return (
+      Array.isArray(x) && x.length >= minLength && x.length <= maxLength &&
+      x.every(e => typeof e === expectedType));
+}
+// tslint:enable:no-any
+
+/**
+ * Count the elements in an Array of LayerVariables.
+ *
+ * @param weights: The LayerVariables of which the constituent numbers are to
+ *   be counted.
+ * @returns A count of the elements in all the LayerVariables
+ */
+export function countParamsInWeights(weights: LayerVariable[]): number {
+  let count = 0;
+  for (const weight of weights) {
+    if (weight.shape.length === 0) {
+      count += 1;
+    } else {
+      count += weight.shape.reduce((a, b) => a * b);
+    }
+  }
+  return count;
 }
