@@ -26,9 +26,9 @@ export declare class L1L2 extends Regularizer {
 export declare function l1(config?: L1Config): L1L2;
 export declare function l2(config: L2Config): L1L2;
 export declare type RegularizerIdentifier = 'l1l2' | string;
-export declare const REGULARIZER_IDENTIFIER_REGISTRY_SYMBOL_MAP: {
-    [identifier in RegularizerIdentifier]: string;
-};
+//export declare const REGULARIZER_IDENTIFIER_REGISTRY_SYMBOL_MAP: {
+//    [identifier in RegularizerIdentifier]: string;
+//};
 export declare function serializeRegularizer(constraint: Regularizer): serialization.ConfigDictValue;
 export declare function deserializeRegularizer(config: serialization.ConfigDict, customObjects?: serialization.ConfigDict): Regularizer;
 export declare function getRegularizer(identifier: RegularizerIdentifier | serialization.ConfigDict | Regularizer): Regularizer;
