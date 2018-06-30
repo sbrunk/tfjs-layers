@@ -690,7 +690,8 @@ var GRUCell = (function (_super) {
         _this.units = config.units;
         _this.activation = activations_1.getActivation(config.activation === undefined ? _this.DEFAULT_ACTIVATION :
             config.activation);
-        _this.recurrentActivation = activations_1.getActivation(config.activation === undefined ? _this.DEFAULT_RECURRENT_ACTIVATION :
+        _this.recurrentActivation = activations_1.getActivation(config.recurrentActivation === undefined ?
+            _this.DEFAULT_RECURRENT_ACTIVATION :
             config.recurrentActivation);
         _this.useBias = config.useBias == null ? true : config.useBias;
         _this.kernelInitializer = initializers_1.getInitializer(config.kernelInitializer || _this.DEFAULT_KERNEL_INITIALIZER);
@@ -793,6 +794,7 @@ var GRUCell = (function (_super) {
         var config = {
             units: this.units,
             activation: activations_1.serializeActivation(this.activation),
+            recurrentActivation: activations_1.serializeActivation(this.recurrentActivation),
             useBias: this.useBias,
             kernelInitializer: initializers_1.serializeInitializer(this.kernelInitializer),
             recurrentInitializer: initializers_1.serializeInitializer(this.recurrentInitializer),
@@ -848,6 +850,13 @@ var GRU = (function (_super) {
     Object.defineProperty(GRU.prototype, "activation", {
         get: function () {
             return this.cell.activation;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(GRU.prototype, "recurrentActivation", {
+        get: function () {
+            return this.cell.recurrentActivation;
         },
         enumerable: true,
         configurable: true
@@ -947,6 +956,7 @@ var GRU = (function (_super) {
         var config = {
             units: this.units,
             activation: activations_1.serializeActivation(this.activation),
+            recurrentActivation: activations_1.serializeActivation(this.recurrentActivation),
             useBias: this.useBias,
             kernelInitializer: initializers_1.serializeInitializer(this.kernelInitializer),
             recurrentInitializer: initializers_1.serializeInitializer(this.recurrentInitializer),
@@ -990,7 +1000,8 @@ var LSTMCell = (function (_super) {
         _this.units = config.units;
         _this.activation = activations_1.getActivation(config.activation === undefined ? _this.DEFAULT_ACTIVATION :
             config.activation);
-        _this.recurrentActivation = activations_1.getActivation(config.activation === undefined ? _this.DEFAULT_RECURRENT_ACTIVATION :
+        _this.recurrentActivation = activations_1.getActivation(config.recurrentActivation === undefined ?
+            _this.DEFAULT_RECURRENT_ACTIVATION :
             config.recurrentActivation);
         _this.useBias = config.useBias == null ? true : config.useBias;
         _this.kernelInitializer = initializers_1.getInitializer(config.kernelInitializer || _this.DEFAULT_KERNEL_INITIALIZER);
@@ -1127,6 +1138,7 @@ var LSTMCell = (function (_super) {
         var config = {
             units: this.units,
             activation: activations_1.serializeActivation(this.activation),
+            recurrentActivation: activations_1.serializeActivation(this.recurrentActivation),
             useBias: this.useBias,
             kernelInitializer: initializers_1.serializeInitializer(this.kernelInitializer),
             recurrentInitializer: initializers_1.serializeInitializer(this.recurrentInitializer),
@@ -1183,6 +1195,13 @@ var LSTM = (function (_super) {
     Object.defineProperty(LSTM.prototype, "activation", {
         get: function () {
             return this.cell.activation;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(LSTM.prototype, "recurrentActivation", {
+        get: function () {
+            return this.cell.recurrentActivation;
         },
         enumerable: true,
         configurable: true
@@ -1289,6 +1308,7 @@ var LSTM = (function (_super) {
         var config = {
             units: this.units,
             activation: activations_1.serializeActivation(this.activation),
+            recurrentActivation: activations_1.serializeActivation(this.recurrentActivation),
             useBias: this.useBias,
             kernelInitializer: initializers_1.serializeInitializer(this.kernelInitializer),
             recurrentInitializer: initializers_1.serializeInitializer(this.recurrentInitializer),

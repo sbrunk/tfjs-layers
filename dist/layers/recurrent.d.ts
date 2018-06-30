@@ -172,6 +172,7 @@ export declare class GRUCell extends RNNCell {
     getConfig(): serialization.ConfigDict;
 }
 export interface GRULayerConfig extends SimpleRNNLayerConfig {
+    recurrentActivation?: string;
     implementation?: number;
 }
 export declare class GRU extends RNN {
@@ -180,6 +181,7 @@ export declare class GRU extends RNN {
     call(inputs: Tensor | Tensor[], kwargs: Kwargs): Tensor | Tensor[];
     readonly units: number;
     readonly activation: Activation;
+    readonly recurrentActivation: Activation;
     readonly useBias: boolean;
     readonly kernelInitializer: Initializer;
     readonly recurrentInitializer: Initializer;
@@ -235,6 +237,7 @@ export declare class LSTMCell extends RNNCell {
     getConfig(): serialization.ConfigDict;
 }
 export interface LSTMLayerConfig extends SimpleRNNLayerConfig {
+    recurrentActivation?: string;
     unitForgetBias?: boolean;
     implementation?: 1 | 2;
 }
@@ -244,6 +247,7 @@ export declare class LSTM extends RNN {
     call(inputs: Tensor | Tensor[], kwargs: Kwargs): Tensor | Tensor[];
     readonly units: number;
     readonly activation: Activation;
+    readonly recurrentActivation: Activation;
     readonly useBias: boolean;
     readonly kernelInitializer: Initializer;
     readonly recurrentInitializer: Initializer;

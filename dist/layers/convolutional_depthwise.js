@@ -31,13 +31,13 @@ function depthwiseConv2d(x, depthwiseKernel, strides, padding, dataFormat, dilat
         }
         common_2.checkDataFormat(dataFormat);
         var y = convolutional_1.preprocessConv2DInput(x, dataFormat);
-        if (K.ndim(x) !== 4) {
+        if (x.rank !== 4) {
             throw new errors_1.ValueError("Input for depthwiseConv2d is required to be 4-D, but is instead " +
-                (K.ndim(x) + "-D"));
+                (x.rank + "-D"));
         }
-        if (K.ndim(depthwiseKernel) !== 4) {
+        if (depthwiseKernel.rank !== 4) {
             throw new errors_1.ValueError("depthwiseKernel is required to be 4-D, but is instead " +
-                (K.ndim(depthwiseKernel) + "-D"));
+                (depthwiseKernel.rank + "-D"));
         }
         y = tfc.depthwiseConv2d(y, depthwiseKernel, strides, padding === 'same' ? 'same' : 'valid', 'NHWC', dilationRate);
         if (dataFormat === 'channelsFirst') {
@@ -50,7 +50,7 @@ exports.depthwiseConv2d = depthwiseConv2d;
 var DepthwiseConv2D = (function (_super) {
     __extends(DepthwiseConv2D, _super);
     function DepthwiseConv2D(config) {
-        var _this = _super.call(this, config) || this;
+        var _this = _super.call(this, 2, config) || this;
         _this.depthwiseKernel = null;
         _this.depthMultiplier =
             config.depthMultiplier == null ? 1 : config.depthMultiplier;
@@ -115,7 +115,7 @@ var DepthwiseConv2D = (function (_super) {
     };
     DepthwiseConv2D.className = 'DepthwiseConv2D';
     return DepthwiseConv2D;
-}(convolutional_1.Conv2D));
+}(convolutional_1.BaseConv));
 exports.DepthwiseConv2D = DepthwiseConv2D;
 tfjs_core_1.serialization.SerializationMap.register(DepthwiseConv2D);
 //# sourceMappingURL=convolutional_depthwise.js.map

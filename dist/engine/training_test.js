@@ -1,4 +1,14 @@
 "use strict";
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = Object.setPrototypeOf ||
+        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -843,6 +853,73 @@ test_utils_1.describeMathCPUAndGPU('Model.fit', function () {
             return [2];
         });
     }); });
+    var StopAfterNEpochs = (function (_super) {
+        __extends(StopAfterNEpochs, _super);
+        function StopAfterNEpochs(epochsToTrain) {
+            var _this = _super.call(this) || this;
+            _this.epochsToTrain = epochsToTrain;
+            return _this;
+        }
+        StopAfterNEpochs.prototype.onEpochEnd = function (epoch, logs) {
+            return __awaiter(this, void 0, void 0, function () {
+                return __generator(this, function (_a) {
+                    if (epoch === this.epochsToTrain - 1) {
+                        this.model.stopTraining = true;
+                    }
+                    return [2];
+                });
+            });
+        };
+        return StopAfterNEpochs;
+    }(tfl.Callback));
+    it('Stop training at the end of an epoch: Functional model', function (done) {
+        createDenseModelAndData(true);
+        model.compile({ optimizer: 'SGD', loss: 'meanSquaredError' });
+        model
+            .fit(inputs, targets, {
+            batchSize: numSamples,
+            epochs: 10,
+            callbacks: [new StopAfterNEpochs(2)]
+        })
+            .then(function (history) {
+            expect(history.history.loss.length).toEqual(2);
+            done();
+        })
+            .catch(function (err) { return done.fail(err.stack); });
+    });
+    var StopAfterNBatches = (function (_super) {
+        __extends(StopAfterNBatches, _super);
+        function StopAfterNBatches(epochsToTrain) {
+            var _this = _super.call(this) || this;
+            _this.batchesToTrain = epochsToTrain;
+            return _this;
+        }
+        StopAfterNBatches.prototype.onBatchEnd = function (batch, logs) {
+            return __awaiter(this, void 0, void 0, function () {
+                return __generator(this, function (_a) {
+                    if (batch === this.batchesToTrain - 1) {
+                        this.model.stopTraining = true;
+                    }
+                    return [2];
+                });
+            });
+        };
+        return StopAfterNBatches;
+    }(tfl.Callback));
+    it('Stop training at the end of a batch: Sequential model', function (done) {
+        var sequentialModel = tfl.sequential();
+        sequentialModel.add(tfl.layers.dense({ units: 1, kernelInitializer: 'ones', inputShape: [inputSize] }));
+        inputs = tfjs_core_1.ones([numSamples, inputSize]);
+        targets = tfjs_core_1.ones([numSamples, 1]);
+        sequentialModel.compile({ optimizer: 'SGD', loss: 'meanSquaredError' });
+        sequentialModel
+            .fit(inputs, targets, { batchSize: 1, epochs: 10, callbacks: [new StopAfterNBatches(2)] })
+            .then(function (history) {
+            expect(history.history.loss.length).toEqual(1);
+            done();
+        })
+            .catch(function (err) { return done.fail(err.stack); });
+    });
     it('Invalid dict loss: nonexistent output name', function () {
         createDenseModelAndData();
         expect(function () { return model.compile({
@@ -905,6 +982,284 @@ test_utils_1.describeMathCPUAndGPU('Model.fit with training-sensitive layers', f
                     ]);
                     done();
                     return [2];
+            }
+        });
+    }); });
+});
+test_utils_1.describeMathCPUAndGPU('Model.fit: No memory leak', function () {
+    var inputSize = 4;
+    var numSamples = 5;
+    var inputTensor = tfl.layers.input({ shape: [inputSize], name: 'inputLayer1', dtype: 'float32' });
+    var model;
+    var inputs;
+    var targets;
+    var valInputs;
+    var valTargets;
+    function createDenseModelAndData(useBias, kernelRegularizer, biasRegularizer) {
+        if (useBias === void 0) { useBias = false; }
+        var layer = tfl.layers.dense({ units: 1, useBias: useBias, kernelInitializer: 'ones', kernelRegularizer: kernelRegularizer });
+        var output = layer.apply(inputTensor);
+        model = new tfl.Model({ inputs: [inputTensor], outputs: [output] });
+        inputs = tfjs_core_1.ones([numSamples, inputSize]);
+        targets = tfjs_core_1.ones([numSamples, 1]);
+        valInputs = tfjs_core_1.zeros([numSamples, inputSize]);
+        valTargets = tfjs_core_1.zeros([numSamples, 1]);
+    }
+    it('Repeated fit calls leads to no memory leak: no validation or metrics', function (done) { return __awaiter(_this, void 0, void 0, function () {
+        var numTensors0, i, numTensorsNow;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    createDenseModelAndData();
+                    model.compile({ optimizer: 'SGD', loss: 'meanSquaredError' });
+                    return [4, model.fit(inputs, targets, { batchSize: numSamples, epochs: 1 })];
+                case 1:
+                    _a.sent();
+                    numTensors0 = tfjs_core_1.memory().numTensors;
+                    i = 0;
+                    _a.label = 2;
+                case 2:
+                    if (!(i < 2)) return [3, 5];
+                    return [4, model.fit(inputs, targets, { batchSize: numSamples, epochs: 1 })];
+                case 3:
+                    _a.sent();
+                    numTensorsNow = tfjs_core_1.memory().numTensors;
+                    if (numTensorsNow > numTensors0) {
+                        done.fail("Memory leak detected during fit(): Leaked " +
+                            (numTensorsNow - numTensors0 + " tensor(s) after the ") +
+                            (i + 1 + "-th fit() call."));
+                    }
+                    else {
+                        done();
+                    }
+                    _a.label = 4;
+                case 4:
+                    ++i;
+                    return [3, 2];
+                case 5: return [2];
+            }
+        });
+    }); });
+    it('Repeated fit calls leads to no memory leak: batchSize=1, ' +
+        'no validation or metrics', function (done) { return __awaiter(_this, void 0, void 0, function () {
+        var batchSize, numTensors0, i, numTensorsNow;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    createDenseModelAndData();
+                    model.compile({ optimizer: 'SGD', loss: 'meanSquaredError' });
+                    batchSize = 1;
+                    return [4, model.fit(inputs, targets, { batchSize: batchSize, epochs: 1 })];
+                case 1:
+                    _a.sent();
+                    numTensors0 = tfjs_core_1.memory().numTensors;
+                    i = 0;
+                    _a.label = 2;
+                case 2:
+                    if (!(i < 2)) return [3, 5];
+                    return [4, model.fit(inputs, targets, { batchSize: batchSize, epochs: 1 })];
+                case 3:
+                    _a.sent();
+                    numTensorsNow = tfjs_core_1.memory().numTensors;
+                    if (numTensorsNow > numTensors0) {
+                        done.fail("Memory leak detected during fit(): Leaked " +
+                            (numTensorsNow - numTensors0 + " tensor(s) after the ") +
+                            (i + 1 + "-th fit() call."));
+                    }
+                    else {
+                        done();
+                    }
+                    _a.label = 4;
+                case 4:
+                    ++i;
+                    return [3, 2];
+                case 5: return [2];
+            }
+        });
+    }); });
+    it('Repeated fit calls leads to no memory leak: with metrics', function (done) { return __awaiter(_this, void 0, void 0, function () {
+        var numTensors0, i, numTensorsNow;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    createDenseModelAndData();
+                    model.compile({ optimizer: 'SGD', loss: 'meanSquaredError', metrics: ['mse'] });
+                    return [4, model.fit(inputs, targets, { batchSize: numSamples, epochs: 1 })];
+                case 1:
+                    _a.sent();
+                    numTensors0 = tfjs_core_1.memory().numTensors;
+                    i = 0;
+                    _a.label = 2;
+                case 2:
+                    if (!(i < 2)) return [3, 5];
+                    return [4, model.fit(inputs, targets, { batchSize: numSamples, epochs: 1 })];
+                case 3:
+                    _a.sent();
+                    numTensorsNow = tfjs_core_1.memory().numTensors;
+                    if (numTensorsNow > numTensors0) {
+                        done.fail("Memory leak detected during fit(): Leaked " +
+                            (numTensorsNow - numTensors0 + " tensor(s) after the ") +
+                            (i + 1 + "-th fit() call."));
+                    }
+                    else {
+                        done();
+                    }
+                    _a.label = 4;
+                case 4:
+                    ++i;
+                    return [3, 2];
+                case 5: return [2];
+            }
+        });
+    }); });
+    it('Repeated fit calls leads to no memory leak: validationSplit', function (done) { return __awaiter(_this, void 0, void 0, function () {
+        var validationSplit, numTensors0, i, numTensorsNow;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    createDenseModelAndData();
+                    validationSplit = 0.4;
+                    model.compile({ optimizer: 'SGD', loss: 'meanSquaredError' });
+                    return [4, model.fit(inputs, targets, { batchSize: numSamples, epochs: 1, validationSplit: validationSplit })];
+                case 1:
+                    _a.sent();
+                    numTensors0 = tfjs_core_1.memory().numTensors;
+                    i = 0;
+                    _a.label = 2;
+                case 2:
+                    if (!(i < 2)) return [3, 5];
+                    return [4, model.fit(inputs, targets, { batchSize: numSamples, epochs: 1, validationSplit: validationSplit })];
+                case 3:
+                    _a.sent();
+                    numTensorsNow = tfjs_core_1.memory().numTensors;
+                    if (numTensorsNow > numTensors0) {
+                        done.fail("Memory leak detected during fit(): Leaked " +
+                            (numTensorsNow - numTensors0 + " tensor(s) after the ") +
+                            (i + 1 + "-th fit() call."));
+                    }
+                    else {
+                        done();
+                    }
+                    _a.label = 4;
+                case 4:
+                    ++i;
+                    return [3, 2];
+                case 5: return [2];
+            }
+        });
+    }); });
+    it('Repeated fit calls leads to no memory leak: validationData', function (done) { return __awaiter(_this, void 0, void 0, function () {
+        var validationData, numTensors0, i, numTensorsNow;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    createDenseModelAndData();
+                    validationData = [valInputs, valTargets];
+                    model.compile({ optimizer: 'SGD', loss: 'meanSquaredError' });
+                    return [4, model.fit(inputs, targets, { batchSize: numSamples, epochs: 1, validationData: validationData })];
+                case 1:
+                    _a.sent();
+                    numTensors0 = tfjs_core_1.memory().numTensors;
+                    i = 0;
+                    _a.label = 2;
+                case 2:
+                    if (!(i < 2)) return [3, 5];
+                    return [4, model.fit(inputs, targets, { batchSize: numSamples, epochs: 1, validationData: validationData })];
+                case 3:
+                    _a.sent();
+                    numTensorsNow = tfjs_core_1.memory().numTensors;
+                    if (numTensorsNow > numTensors0) {
+                        done.fail("Memory leak detected during fit(): Leaked " +
+                            (numTensorsNow - numTensors0 + " tensor(s) after the ") +
+                            (i + 1 + "-th fit() call."));
+                    }
+                    else {
+                        done();
+                    }
+                    _a.label = 4;
+                case 4:
+                    ++i;
+                    return [3, 2];
+                case 5: return [2];
+            }
+        });
+    }); });
+    it('Repeated fit calls leads to no memory leak: metrics & validationSplit', function (done) { return __awaiter(_this, void 0, void 0, function () {
+        var validationSplit, numTensors0, i, numTensorsNow;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    createDenseModelAndData();
+                    validationSplit = 0.4;
+                    model.compile({ optimizer: 'SGD', loss: 'meanSquaredError', metrics: ['mse'] });
+                    return [4, model.fit(inputs, targets, { batchSize: numSamples, epochs: 1, validationSplit: validationSplit })];
+                case 1:
+                    _a.sent();
+                    numTensors0 = tfjs_core_1.memory().numTensors;
+                    i = 0;
+                    _a.label = 2;
+                case 2:
+                    if (!(i < 2)) return [3, 5];
+                    return [4, model.fit(inputs, targets, { batchSize: numSamples, epochs: 1, validationSplit: validationSplit })];
+                case 3:
+                    _a.sent();
+                    numTensorsNow = tfjs_core_1.memory().numTensors;
+                    if (numTensorsNow > numTensors0) {
+                        done.fail("Memory leak detected during fit(): Leaked " +
+                            (numTensorsNow - numTensors0 + " tensor(s) after the ") +
+                            (i + 1 + "-th fit() call."));
+                    }
+                    else {
+                        done();
+                    }
+                    _a.label = 4;
+                case 4:
+                    ++i;
+                    return [3, 2];
+                case 5: return [2];
+            }
+        });
+    }); });
+    it('Repeated fit calls leads to no memory leak: batchSize=2, ' +
+        'metrics & validationSplit', function (done) { return __awaiter(_this, void 0, void 0, function () {
+        var validationSplit, batchSize, epochsPerIter, numTensors0, i, history_1, numTensorsNow;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    createDenseModelAndData();
+                    validationSplit = 0.4;
+                    model.compile({ optimizer: 'SGD', loss: 'meanSquaredError', metrics: ['mse'] });
+                    batchSize = 2;
+                    epochsPerIter = 2;
+                    return [4, model.fit(inputs, targets, { batchSize: batchSize, epochs: 1, validationSplit: validationSplit })];
+                case 1:
+                    _a.sent();
+                    numTensors0 = tfjs_core_1.memory().numTensors;
+                    i = 0;
+                    _a.label = 2;
+                case 2:
+                    if (!(i < 2)) return [3, 5];
+                    return [4, model.fit(inputs, targets, { batchSize: batchSize, epochs: epochsPerIter, validationSplit: validationSplit })];
+                case 3:
+                    history_1 = _a.sent();
+                    expect(history_1.history['loss'].length).toEqual(epochsPerIter);
+                    expect(history_1.history['val_loss'].length).toEqual(epochsPerIter);
+                    expect(history_1.history['mse'].length).toEqual(epochsPerIter);
+                    expect(history_1.history['val_mse'].length).toEqual(epochsPerIter);
+                    numTensorsNow = tfjs_core_1.memory().numTensors;
+                    if (numTensorsNow > numTensors0) {
+                        done.fail("Memory leak detected during fit(): Leaked " +
+                            (numTensorsNow - numTensors0 + " tensor(s) after the ") +
+                            (i + 1 + "-th fit() call."));
+                    }
+                    else {
+                        done();
+                    }
+                    _a.label = 4;
+                case 4:
+                    ++i;
+                    return [3, 2];
+                case 5: return [2];
             }
         });
     }); });
@@ -995,6 +1350,112 @@ test_utils_1.describeMathCPUAndGPU('Load weights', function () {
         };
         model.loadWeights(weightsJSON);
         test_utils_1.expectTensorsClose(model.apply(tfjs_core_1.tensor2d([[1, 1, 1]], [1, 3])), tfjs_core_1.tensor2d([[0.8, 1.0]], [1, 2]));
+    });
+});
+test_utils_1.describeMathCPUAndGPU('Model.execute', function () {
+    function createFunctionalModel() {
+        var input1 = tfl.input({ shape: [2, 3] });
+        var reshape1 = tfl.layers.reshape({ targetShape: [3, 2] }).apply(input1);
+        var input2 = tfl.input({ shape: [3, 4] });
+        var concat = tfl.layers.concatenate({ axis: -1 }).apply([reshape1, input2]);
+        var model = tfl.model({ inputs: [input1, input2], outputs: concat });
+        return [model, { input1: input1, reshape1: reshape1, input2: input2, concat: concat }];
+    }
+    function createSequentialModel() {
+        var model = tfl.sequential();
+        model.add(tfl.layers.dense({
+            units: 6,
+            inputShape: [4],
+            kernelInitializer: 'zeros',
+            useBias: false
+        }));
+        model.add(tfl.layers.dense({ units: 3, kernelInitializer: 'zeros', useBias: false }));
+        model.add(tfl.layers.dense({ units: 1, kernelInitializer: 'zeros', useBias: false }));
+        return model;
+    }
+    it('Functional model: single output', function () {
+        var _a = createFunctionalModel(), model = _a[0], layers = _a[1];
+        var inputs = [tfjs_core_1.zeros([1, 2, 3]), tfjs_core_1.zeros([1, 3, 4])];
+        var outputs = model.execute(inputs, layers['reshape1'].name);
+        test_utils_1.expectTensorsClose(outputs, tfjs_core_1.zeros([1, 3, 2]));
+    });
+    it('Functional model: multiple outputs', function () {
+        var _a = createFunctionalModel(), model = _a[0], layers = _a[1];
+        var inputs = [tfjs_core_1.zeros([1, 2, 3]), tfjs_core_1.zeros([1, 3, 4])];
+        var outputs = model.execute(inputs, [
+            layers['reshape1'].name, layers['concat'].name, layers['input2'].name
+        ]);
+        test_utils_1.expectTensorsClose(outputs[0], tfjs_core_1.zeros([1, 3, 2]));
+        test_utils_1.expectTensorsClose(outputs[1], tfjs_core_1.zeros([1, 3, 6]));
+        test_utils_1.expectTensorsClose(outputs[2], tfjs_core_1.zeros([1, 3, 4]));
+    });
+    it('Functional model: Dictionary of inputs', function () {
+        var _a = createFunctionalModel(), model = _a[0], layers = _a[1];
+        var inputName1 = model.inputs[0].name;
+        var inputName2 = model.inputs[1].name;
+        var inputs = {};
+        inputs[inputName1] = tfjs_core_1.zeros([1, 2, 3]);
+        inputs[inputName2] = tfjs_core_1.zeros([1, 3, 4]);
+        var outputs = model.execute(inputs, [
+            layers['reshape1'].name, layers['concat'].name, layers['input2'].name
+        ]);
+        test_utils_1.expectTensorsClose(outputs[0], tfjs_core_1.zeros([1, 3, 2]));
+        test_utils_1.expectTensorsClose(outputs[1], tfjs_core_1.zeros([1, 3, 6]));
+        test_utils_1.expectTensorsClose(outputs[2], tfjs_core_1.zeros([1, 3, 4]));
+    });
+    it('Functional model: missing input in dictionary throws Error', function () {
+        var _a = createFunctionalModel(), model = _a[0], layers = _a[1];
+        var inputName2 = model.inputs[1].name;
+        var inputs = {};
+        inputs[inputName2] = tfjs_core_1.zeros([1, 3, 4]);
+        expect(function () { return model.execute(inputs, layers['reshape1'].name); })
+            .toThrowError(/No value is provided for .* input/);
+    });
+    it('Functional model: Incorrect number of inputs throws Error', function () {
+        var _a = createFunctionalModel(), model = _a[0], layers = _a[1];
+        var inputs = [tfjs_core_1.zeros([1, 2, 3])];
+        expect(function () { return model.execute(inputs, layers['reshape1'].name); })
+            .toThrowError(/The number of inputs provided \(1\) does not match .*2/);
+    });
+    it('Functional model: nonexistent tensor name throws Error', function () {
+        var _a = createFunctionalModel(), model = _a[0], layers = _a[1];
+        var inputs = [tfjs_core_1.zeros([1, 2, 3]), tfjs_core_1.zeros([1, 3, 4])];
+        var nonexistentTensorName = layers['reshape1'].name + Math.random().toFixed(4);
+        expect(function () { return model.execute(inputs, nonexistentTensorName); })
+            .toThrowError(/Cannot find SymbolicTensors for output name/);
+        expect(function () { return model.execute(inputs, [
+            layers['reshape1'].name, nonexistentTensorName
+        ]); }).toThrowError(/Cannot find SymbolicTensors for output name/);
+    });
+    it('Functional model: empty outputs string throws Error', function () {
+        var model = createFunctionalModel()[0];
+        var inputs = [tfjs_core_1.zeros([1, 2, 3]), tfjs_core_1.zeros([1, 3, 4])];
+        expect(function () { return model.execute(inputs, []); }).toThrowError(/empty Array/);
+    });
+    it('Sequential model: singleton input', function () {
+        var model = createSequentialModel();
+        var input = tfjs_core_1.zeros([2, 4]);
+        var outputs = model.execute(input, [
+            model.layers[2].output.name,
+            model.layers[1].output.name,
+            model.layers[0].output.name,
+        ]);
+        test_utils_1.expectTensorsClose(outputs[0], tfjs_core_1.zeros([2, 1]));
+        test_utils_1.expectTensorsClose(outputs[1], tfjs_core_1.zeros([2, 3]));
+        test_utils_1.expectTensorsClose(outputs[2], tfjs_core_1.zeros([2, 6]));
+    });
+    it('Sequential model: length-1 Array input', function () {
+        var model = createSequentialModel();
+        var input = [tfjs_core_1.zeros([2, 4])];
+        var output = model.execute(input, model.layers[1].output.name);
+        test_utils_1.expectTensorsClose(output, tfjs_core_1.zeros([2, 3]));
+    });
+    it('Sequential model: length-1 dictionary input', function () {
+        var model = createSequentialModel();
+        var inputs = {};
+        inputs[model.input.name] = tfjs_core_1.zeros([2, 4]);
+        var output = model.execute(inputs, model.layers[1].output.name);
+        test_utils_1.expectTensorsClose(output, tfjs_core_1.zeros([2, 3]));
     });
 });
 //# sourceMappingURL=training_test.js.map

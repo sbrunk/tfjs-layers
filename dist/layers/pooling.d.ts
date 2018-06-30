@@ -30,7 +30,7 @@ export declare class AveragePooling1D extends Pooling1D {
 }
 export interface Pooling2DLayerConfig extends LayerConfig {
     poolSize?: number | [number, number];
-    strides?: [number, number];
+    strides?: number | [number, number];
     padding?: PaddingMode;
     dataFormat?: DataFormat;
 }

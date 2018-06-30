@@ -343,7 +343,9 @@ test_utils_1.describeMathCPUAndGPU('RNN-Layer-Math', function () {
         var rnn = tfl.layers.rnn({ cell: cell, returnState: true });
         var inputs = tfjs_core_1.tensor3d([[[1, 2], [3, 4], [5, 6]], [[10, 20], [30, 40], [50, 60]]], [2, 3, 2]);
         var outputs = rnn.apply(inputs, {
-            'initialState': [tfc.ones([2, 4]), K.scalarTimesArray(tfjs_core_1.scalar(2), tfc.ones([2, 5]))]
+            'initialState': [
+                tfc.ones([2, 4]), K.scalarTimesArray(tfjs_core_1.scalar(2), tfc.ones([2, 5]))
+            ]
         });
         expect(outputs.length).toEqual(3);
         test_utils_1.expectTensorsClose(outputs[0], K.scalarTimesArray(tfjs_core_1.scalar(-58.75), tfc.ones([2, 4])));
@@ -641,6 +643,32 @@ test_utils_1.describeMathCPUAndGPU('GRU Tensor', function () {
         test_utils_1.expectTensorsClose(dense.getWeights()[0], tfjs_core_1.tensor2d([[1.2187521]], [1, 1]));
     });
 });
+test_utils_1.describeMathCPU('GRU-deserialization', function () {
+    it('Default recurrentActivation round trip', function () {
+        var x = tfjs_core_1.randomNormal([1, 2, 3]);
+        var layer = tfl.layers.gru({ units: 4 });
+        var y = layer.apply(x);
+        var pythonicConfig = serialization_utils_1.convertTsToPythonic(layer.getConfig());
+        var tsConfig = serialization_utils_1.convertPythonicToTs(pythonicConfig);
+        var layerPrime = tfl.layers.gru(tsConfig);
+        var yPrime = layer.apply(x);
+        test_utils_1.expectTensorsClose(yPrime, y);
+        expect(layerPrime.recurrentActivation.getClassName())
+            .toEqual(layer.recurrentActivation.getClassName());
+    });
+    it('Non-default recurrentActivation round trip', function () {
+        var x = tfjs_core_1.randomNormal([1, 2, 3]);
+        var layer = tfl.layers.gru({ units: 4, recurrentActivation: 'tanh' });
+        var y = layer.apply(x);
+        var pythonicConfig = serialization_utils_1.convertTsToPythonic(layer.getConfig());
+        var tsConfig = serialization_utils_1.convertPythonicToTs(pythonicConfig);
+        var layerPrime = tfl.layers.gru(tsConfig);
+        var yPrime = layer.apply(x);
+        test_utils_1.expectTensorsClose(yPrime, y);
+        expect(layerPrime.recurrentActivation.getClassName())
+            .toEqual(layer.recurrentActivation.getClassName());
+    });
+});
 test_utils_1.describeMathCPU('LSTM Symbolic', function () {
     it('returnSequences=false, returnState=false', function () {
         var input = new tfl.SymbolicTensor('float32', [9, 10, 8], null, [], null);
@@ -805,6 +833,30 @@ test_utils_1.describeMathCPU('LSTM-deserialization', function () {
             return [2];
         });
     }); });
+    it('Default recurrentActivation round trip', function () {
+        var x = tfjs_core_1.randomNormal([1, 2, 3]);
+        var layer = tfl.layers.lstm({ units: 4 });
+        var y = layer.apply(x);
+        var pythonicConfig = serialization_utils_1.convertTsToPythonic(layer.getConfig());
+        var tsConfig = serialization_utils_1.convertPythonicToTs(pythonicConfig);
+        var layerPrime = tfl.layers.lstm(tsConfig);
+        var yPrime = layer.apply(x);
+        test_utils_1.expectTensorsClose(yPrime, y);
+        expect(layerPrime.recurrentActivation.getClassName())
+            .toEqual(layer.recurrentActivation.getClassName());
+    });
+    it('Non-default recurrentActivation round trip', function () {
+        var x = tfjs_core_1.randomNormal([1, 2, 3]);
+        var layer = tfl.layers.lstm({ units: 4, recurrentActivation: 'tanh' });
+        var y = layer.apply(x);
+        var pythonicConfig = serialization_utils_1.convertTsToPythonic(layer.getConfig());
+        var tsConfig = serialization_utils_1.convertPythonicToTs(pythonicConfig);
+        var layerPrime = tfl.layers.lstm(tsConfig);
+        var yPrime = layer.apply(x);
+        test_utils_1.expectTensorsClose(yPrime, y);
+        expect(layerPrime.recurrentActivation.getClassName())
+            .toEqual(layer.recurrentActivation.getClassName());
+    });
 });
 var fakeLSTMModel = {
     modelTopology: {

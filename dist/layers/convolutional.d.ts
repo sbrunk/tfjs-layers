@@ -31,36 +31,42 @@ export interface BaseConvLayerConfig extends LayerConfig {
 export interface ConvLayerConfig extends BaseConvLayerConfig {
     filters: number;
 }
-export declare abstract class Conv extends Layer {
+export declare abstract class BaseConv extends Layer {
     protected readonly rank: number;
-    protected readonly filters: number;
     protected readonly kernelSize: number[];
     protected readonly strides: number[];
     protected readonly padding: PaddingMode;
     protected readonly dataFormat: DataFormat;
-    protected readonly dilationRate: number | [number] | [number, number];
     protected readonly activation: Activation;
     protected readonly useBias: boolean;
-    protected readonly kernelInitializer?: Initializer;
+    protected readonly dilationRate: number | [number] | [number, number];
     protected readonly biasInitializer?: Initializer;
-    protected readonly kernelConstraint?: Constraint;
     protected readonly biasConstraint?: Constraint;
-    protected readonly kernelRegularizer?: Regularizer;
     protected readonly biasRegularizer?: Regularizer;
-    protected kernel: LayerVariable;
     protected bias: LayerVariable;
     readonly DEFAULT_KERNEL_INITIALIZER: InitializerIdentifier;
     readonly DEFAULT_BIAS_INITIALIZER: InitializerIdentifier;
+    constructor(rank: number, config: BaseConvLayerConfig);
+    protected static verifyConfig(config: BaseConvLayerConfig): void;
+}
+export declare abstract class Conv extends BaseConv {
+    protected readonly filters: number;
+    protected kernel: LayerVariable;
+    protected readonly kernelInitializer?: Initializer;
+    protected readonly kernelConstraint?: Constraint;
+    protected readonly kernelRegularizer?: Regularizer;
     constructor(rank: number, config: ConvLayerConfig);
     build(inputShape: Shape | Shape[]): void;
     call(inputs: Tensor | Tensor[], kwargs: Kwargs): Tensor | Tensor[];
     computeOutputShape(inputShape: Shape | Shape[]): Shape | Shape[];
     getConfig(): serialization.ConfigDict;
+    protected static verifyConfig(config: ConvLayerConfig): void;
 }
 export declare class Conv2D extends Conv {
     static className: string;
     constructor(config: ConvLayerConfig);
     getConfig(): serialization.ConfigDict;
+    protected static verifyConfig(config: ConvLayerConfig): void;
 }
 export declare class Conv2DTranspose extends Conv2D {
     static className: string;
@@ -106,6 +112,7 @@ export declare class Conv1D extends Conv {
     static className: string;
     constructor(config: ConvLayerConfig);
     getConfig(): serialization.ConfigDict;
+    static verifyConfig(config: ConvLayerConfig): void;
 }
 export interface Cropping2DLayerConfig extends LayerConfig {
     cropping: number | [number, number] | [[number, number], [number, number]];
@@ -116,6 +123,20 @@ export declare class Cropping2D extends Layer {
     protected readonly cropping: [[number, number], [number, number]];
     protected readonly dataFormat: DataFormat;
     constructor(config: Cropping2DLayerConfig);
+    computeOutputShape(inputShape: Shape): Shape;
+    call(inputs: Tensor | Tensor[], kwargs: Kwargs): Tensor | Tensor[];
+    getConfig(): serialization.ConfigDict;
+}
+export interface UpSampling2DLayerConfig extends LayerConfig {
+    size?: number[];
+    dataFormat?: DataFormat;
+}
+export declare class UpSampling2D extends Layer {
+    static className: string;
+    protected readonly DEFAULT_SIZE: number[];
+    protected readonly size: number[];
+    protected readonly dataFormat: DataFormat;
+    constructor(config: UpSampling2DLayerConfig);
     computeOutputShape(inputShape: Shape): Shape;
     call(inputs: Tensor | Tensor[], kwargs: Kwargs): Tensor | Tensor[];
     getConfig(): serialization.ConfigDict;

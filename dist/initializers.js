@@ -360,8 +360,8 @@ var Orthogonal = (function (_super) {
                 throw new errors_1.NotImplementedError('The Orthogonal Initializer does not support non-2D shapes yet.');
             }
             if (shape[0] * shape[1] > 2000) {
-                console.warn("Orthgonal initializer is being called on a matrix with more " +
-                    (" than 2000 (" + shape[0] * shape[1] + ") elements: ") +
+                console.warn("Orthogonal initializer is being called on a matrix with more " +
+                    ("than 2000 (" + shape[0] * shape[1] + ") elements: ") +
                     "Slowness may result.");
             }
             var normalizedShape = shape[0] > shape[1] ? [shape[1], shape[0]] : shape;

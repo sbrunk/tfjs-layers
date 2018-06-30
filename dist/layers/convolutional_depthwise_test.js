@@ -214,5 +214,13 @@ test_utils_1.describeMathCPUAndGPU('DepthwiseConv2D-Tensor:', function () {
         var yExpected = tfjs_core_1.tensor4d([100, 100, 260, 260, -100, -100, -260, -260], [1, 2, 2, 2]);
         test_utils_1.expectTensorsClose(y, yExpected);
     });
+    it('missing config.kernelSize throws exception', function () {
+        expect(function (filters) { return tfl.layers.depthwiseConv2d({}); })
+            .toThrowError(/kernelSize/);
+    });
+    it('bad config.kernelSize throws exception', function () {
+        expect(function () { return tfl.layers.depthwiseConv2d({ kernelSize: [1] }); })
+            .toThrowError(/kernelSize/);
+    });
 });
 //# sourceMappingURL=convolutional_depthwise_test.js.map

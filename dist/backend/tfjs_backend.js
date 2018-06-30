@@ -57,10 +57,6 @@ function intShape(x) {
     return x.shape;
 }
 exports.intShape = intShape;
-function ndim(x) {
-    return x.shape.length;
-}
-exports.ndim = ndim;
 function dtype(x) {
     return (x instanceof tfjs_core_1.Tensor) ? DEFAULT_DTYPE : x.dtype;
 }
@@ -106,8 +102,8 @@ function flatten(x) {
 }
 exports.flatten = flatten;
 function batchFlatten(x) {
-    if (ndim(x) <= 1) {
-        throw new errors_1.ValueError("batchFlatten requires a minimum rank of 2. Got rank: " + ndim(x) + ".");
+    if (x.rank <= 1) {
+        throw new errors_1.ValueError("batchFlatten requires a minimum rank of 2. Got rank: " + x.rank + ".");
     }
     var newShape = [x.shape[0], math_utils.arrayProd(x.shape, 1)];
     return x.reshape(newShape);
@@ -197,55 +193,11 @@ function sliceAlongAxis(array, start, size, axis) {
     });
 }
 exports.sliceAlongAxis = sliceAlongAxis;
-function regularNormalizeBatchInTraining(x, gamma, beta, reductionAxes, epsilon) {
-    if (epsilon === void 0) { epsilon = 1e-3; }
-    return tfjs_core_1.tidy(function () {
-        var meanAndVariance = tfc.moments(x, reductionAxes);
-        var mean = meanAndVariance.mean;
-        var variance = meanAndVariance.variance;
-        var normed = batchNormalization(x, mean, variance, beta, gamma, epsilon);
-        return [normed, mean, variance];
-    });
-}
-function broadcastNormalizeBatchInTraining(x, gamma, beta, reductionAxes, epsilon) {
-    if (epsilon === void 0) { epsilon = 1e-3; }
-    return tfjs_core_1.tidy(function () {
-        var meanAndVariance = tfc.moments(x, reductionAxes);
-        var mean = meanAndVariance.mean;
-        var variance = meanAndVariance.variance;
-        var targetShape = [];
-        for (var _i = 0, _a = math_utils.range(0, ndim(x)); _i < _a.length; _i++) {
-            var axis = _a[_i];
-            if (reductionAxes.indexOf(axis) !== -1) {
-                targetShape.push(1);
-            }
-            else {
-                targetShape.push(x.shape[axis]);
-            }
-        }
-        var broadcastMean = mean.reshape(targetShape);
-        var broadcastVariance = variance.reshape(targetShape);
-        var broadcastGamma = gamma == null ? null : gamma.reshape(targetShape);
-        var broadcastBeta = beta == null ? null : beta.reshape(targetShape);
-        var normed = batchNormalization(x, broadcastMean, broadcastVariance, broadcastBeta, broadcastGamma, epsilon);
-        return [normed, mean, variance];
-    });
-}
-function normalizeBatchInTraining(x, gamma, beta, reductionAxes, epsilon) {
-    if (epsilon === void 0) { epsilon = 1e-3; }
-    if (tfjs_core_1.util.arraysEqual(reductionAxes.slice().sort(), math_utils.range(0, ndim(x) - 1))) {
-        return regularNormalizeBatchInTraining(x, gamma, beta, reductionAxes, epsilon);
-    }
-    else {
-        return broadcastNormalizeBatchInTraining(x, gamma, beta, reductionAxes, epsilon);
-    }
-}
-exports.normalizeBatchInTraining = normalizeBatchInTraining;
 function concatenate(tensors, axis) {
     if (axis === void 0) { axis = -1; }
     var rank;
     if (axis < 0) {
-        rank = ndim(tensors[0]);
+        rank = tensors[0].rank;
         if (rank !== 0) {
             axis = rank;
         }
@@ -253,7 +205,7 @@ function concatenate(tensors, axis) {
             axis = 0;
         }
     }
-    if (axis === ndim(tensors[0])) {
+    if (axis === tensors[0].rank) {
         axis = -1;
     }
     return tfc.concat(tensors, axis);
@@ -279,9 +231,9 @@ function tile(x, n) {
     if (!Array.isArray(n)) {
         n = [n];
     }
-    if (ndim(x) !== n.length) {
+    if (x.rank !== n.length) {
         throw new errors_1.ValueError("The length of input n (" + n.length + ") does not match " +
-            ("the number of dimensions in input x (" + ndim(x) + ")"));
+            ("the number of dimensions in input x (" + x.rank + ")"));
     }
     return tfc.tile(x, n);
 }
@@ -309,15 +261,15 @@ function randomNormal(shape, mean, stddev, dtype, seed) {
 }
 exports.randomNormal = randomNormal;
 function dot(x, y) {
-    if (ndim(y) !== 2) {
+    if (y.rank !== 2) {
         throw new errors_1.NotImplementedError("dot support for y other than rank 2 is not yet implemented: " +
             ("y shape = " + shape));
     }
     else {
-        if (ndim(x) === 2) {
+        if (x.rank === 2) {
             return tfc.matMul(x, y);
         }
-        else if (ndim(x) === 3) {
+        else if (x.rank === 3) {
             var xShape0 = x.shape[0];
             var xShape1 = x.shape[1];
             var xShape2 = x.shape[2];
@@ -327,7 +279,7 @@ function dot(x, y) {
             ]);
         }
         else {
-            throw new errors_1.NotImplementedError("dot support for x of rank " + ndim(x) + " is not yet implemented: " +
+            throw new errors_1.NotImplementedError("dot support for x of rank " + x.rank + " is not yet implemented: " +
                 ("x shape = " + shape));
         }
     }
@@ -405,7 +357,7 @@ function qr(x) {
 exports.qr = qr;
 function oneHot(indices, numClasses) {
     return tfjs_core_1.tidy(function () {
-        if (ndim(indices) !== 1) {
+        if (indices.rank !== 1) {
             throw new Error('Only 1D one-hot tensors are supported in the ' +
                 'deeplearn backend, at present.');
         }
@@ -442,38 +394,19 @@ function pow(x, a) {
     });
 }
 exports.pow = pow;
-function batchNormalization(x, mean, variance, beta, gamma, epsilon) {
-    if (epsilon === void 0) { epsilon = 1e-3; }
-    var out;
-    if (ndim(x) === 2) {
-        out = tfc.batchNormalization2d(x, mean, variance, epsilon, gamma, beta);
-    }
-    else if (ndim(x) === 3) {
-        out = tfc.batchNormalization3d(x, mean, variance, epsilon, gamma, beta);
-    }
-    else if (ndim(x) === 4) {
-        out = tfc.batchNormalization4d(x, mean, variance, epsilon, gamma, beta);
-    }
-    else {
-        throw new errors_1.NotImplementedError("batchNormalization is not implememnted for array of rank " + ndim(x) + " " +
-            "yet");
-    }
-    return out;
-}
-exports.batchNormalization = batchNormalization;
 function biasAdd(x, bias, dataFormat) {
     return tfjs_core_1.tidy(function () {
         if (dataFormat == null) {
             dataFormat = common_3.imageDataFormat();
         }
         common_1.checkDataFormat(dataFormat);
-        if (ndim(bias) !== 1 && ndim(bias) !== ndim(x)) {
-            throw new errors_1.ValueError('Unexpected bias dimensions: ' + ndim(bias) +
-                '; expected it to be 1 or ' + ndim(x));
+        if (bias.rank !== 1 && bias.rank !== x.rank) {
+            throw new errors_1.ValueError('Unexpected bias dimensions: ' + bias.rank +
+                '; expected it to be 1 or ' + x.rank);
         }
         var biasShape = bias.shape;
         var y;
-        if (ndim(x) === 5) {
+        if (x.rank === 5) {
             if (dataFormat === 'channelsFirst') {
                 if (biasShape.length === 1) {
                     y = x.add(bias.reshape([1, biasShape[0], 1, 1, 1]));
@@ -491,7 +424,7 @@ function biasAdd(x, bias, dataFormat) {
                 }
             }
         }
-        else if (ndim(x) === 4) {
+        else if (x.rank === 4) {
             if (dataFormat === 'channelsFirst') {
                 if (biasShape.length === 1) {
                     y = x.add(bias.reshape([1, biasShape[0], 1, 1]));
@@ -509,7 +442,7 @@ function biasAdd(x, bias, dataFormat) {
                 }
             }
         }
-        else if (ndim(x) === 3) {
+        else if (x.rank === 3) {
             if (dataFormat === 'channelsFirst') {
                 if (biasShape.length === 1) {
                     y = x.add(bias.reshape([1, biasShape[0], 1]));
@@ -527,11 +460,11 @@ function biasAdd(x, bias, dataFormat) {
                 }
             }
         }
-        else if (ndim(x) < 3) {
+        else if (x.rank < 3) {
             y = x.add(bias);
         }
         else {
-            throw new errors_1.ValueError("Unsupported input rank by biasAdd: " + ndim(x));
+            throw new errors_1.ValueError("Unsupported input rank by biasAdd: " + x.rank);
         }
         return y;
     });
@@ -565,15 +498,6 @@ function dropout(x, level, noiseShape, seed) {
     });
 }
 exports.dropout = dropout;
-function l2Normalize(x, axis) {
-    return tfjs_core_1.tidy(function () {
-        var squareSum = tfc.sum(square(x), axis, true);
-        var epsilonTensor = scalarTimesArray(tfjs_core_1.scalar(exports.epsilon()), tfc.onesLike(x));
-        var norm = tfc.sqrt(tfc.maximum(squareSum, epsilonTensor));
-        return tfc.div(x, norm);
-    });
-}
-exports.l2Normalize = l2Normalize;
 function nameScope(name, fn) {
     return common_1.nameScope(name, fn);
 }
@@ -592,60 +516,9 @@ function getUid(prefix) {
     return prefix + _uidPrefixes[prefix].toString();
 }
 exports.getUid = getUid;
-function categoricalCrossentropy(target, output, fromLogits) {
-    if (fromLogits === void 0) { fromLogits = false; }
-    return tfjs_core_1.tidy(function () {
-        if (fromLogits) {
-            output = tfc.softmax(output);
-        }
-        else {
-            var outputSum = tfc.sum(output, shape(output).length - 1, true);
-            output = tfc.div(output, outputSum);
-        }
-        output = tfc.clipByValue(output, exports.epsilon(), 1 - exports.epsilon());
-        return tfc.neg(tfc.sum(tfc.mul(target.toFloat(), tfc.log(output)), shape(output).length - 1));
-    });
-}
-exports.categoricalCrossentropy = categoricalCrossentropy;
-function sparseCategoricalCrossentropy(target, output, fromLogits) {
-    if (fromLogits === void 0) { fromLogits = false; }
-    return tfjs_core_1.tidy(function () {
-        var flatTarget = tfc.floor(flatten(target)).toInt();
-        var outputShape = shape(output);
-        var oneHotTarget = tfc.oneHot(flatTarget, outputShape[outputShape.length - 1])
-            .reshape(outputShape);
-        return categoricalCrossentropy(oneHotTarget, output, fromLogits);
-    });
-}
-exports.sparseCategoricalCrossentropy = sparseCategoricalCrossentropy;
-function binaryCrossentropy(target, output, fromLogits) {
-    if (fromLogits === void 0) { fromLogits = false; }
-    return tfjs_core_1.tidy(function () {
-        var y;
-        if (!fromLogits) {
-            y = tfc.clipByValue(output, exports.epsilon(), 1 - exports.epsilon());
-            y = tfc.log(tfc.div(y, tfc.sub(tfc.onesLike(y), y)));
-        }
-        else {
-            y = output;
-        }
-        return sigmoidCrossEntropyWithLogits(target, y);
-    });
-}
-exports.binaryCrossentropy = binaryCrossentropy;
-function sigmoidCrossEntropyWithLogits(target, output) {
-    return tfjs_core_1.tidy(function () {
-        var maxOutput = tfc.maximum(output, tfc.zerosLike(output));
-        var outputXTarget = tfc.mul(output, target);
-        var sigmoidOutput = tfc.log(tfc.add(getScalar(1), tfc.exp(tfc.neg(tfc.abs(output)))));
-        var result = tfc.add(tfc.sub(maxOutput, outputXTarget), sigmoidOutput);
-        return result;
-    });
-}
-exports.sigmoidCrossEntropyWithLogits = sigmoidCrossEntropyWithLogits;
 function hardSigmoid(x) {
     return tfjs_core_1.tidy(function () {
-        var y = scalarPlusArray(tfjs_core_1.scalar(0.5), scalarTimesArray(tfjs_core_1.scalar(0.2), x));
+        var y = scalarPlusArray(getScalar(0.5), scalarTimesArray(getScalar(0.2), x));
         return tfc.clipByValue(y, 0, 1);
     });
 }

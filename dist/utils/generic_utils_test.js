@@ -1,5 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+var tfjs_core_1 = require("@tensorflow/tfjs-core");
+var variables_1 = require("../variables");
 var utils = require("./generic_utils");
 describe('pyListRepeat() ', function () {
     it('creates an empty array for 0 numValues', function () {
@@ -231,6 +233,56 @@ describe('isObjectEmpty', function () {
     it('Non-empty object', function () {
         expect(utils.isObjectEmpty({ 'a': 12 })).toEqual(false);
         expect(utils.isObjectEmpty({ 'a': 12, 'b': 34 })).toEqual(false);
+    });
+});
+describe('checkArrayTypeAndLength', function () {
+    it('checks types', function () {
+        expect(utils.checkArrayTypeAndLength([1, 2, 3], 'number')).toEqual(true);
+        expect(utils.checkArrayTypeAndLength(['hello', 'world'], 'string'))
+            .toEqual(true);
+        expect(utils.checkArrayTypeAndLength([1, 2, [3]], 'number')).toEqual(false);
+    });
+    it('checks lengths', function () {
+        expect(utils.checkArrayTypeAndLength([1, 2, 3], 'number', 1)).toEqual(true);
+        expect(utils.checkArrayTypeAndLength([1, 2, 3], 'number', 1, 3))
+            .toEqual(true);
+        expect(utils.checkArrayTypeAndLength([1, 2, 3, 4, 5], 'number', 1, 3))
+            .toEqual(false);
+        expect(utils.checkArrayTypeAndLength([1, 2, 3, 4, 5], 'number', 7, 10))
+            .toEqual(false);
+        expect(utils.checkArrayTypeAndLength([], 'does_not_matter', 0, 0))
+            .toEqual(true);
+    });
+    it('rejects negative length limits', function () {
+        expect(function () { return utils.checkArrayTypeAndLength([1, 2, 3], 'number', -1); })
+            .toThrowError();
+    });
+    it('rejects maxLength < minLength', function () {
+        expect(function () { return utils.checkArrayTypeAndLength([1, 2, 3], 'number', 100, 2); })
+            .toThrowError();
+    });
+});
+describe('countParamsInWeights', function () {
+    it('Zero weights', function () {
+        expect(utils.countParamsInWeights([])).toEqual(0);
+    });
+    it('One float32 weight', function () {
+        var weight1 = new variables_1.LayerVariable(tfjs_core_1.zeros([2, 3]));
+        expect(utils.countParamsInWeights([weight1])).toEqual(6);
+    });
+    it('One float32 scalar weight', function () {
+        var weight1 = new variables_1.LayerVariable(tfjs_core_1.scalar(42));
+        expect(utils.countParamsInWeights([weight1])).toEqual(1);
+    });
+    it('One int32 weight', function () {
+        var weight1 = new variables_1.LayerVariable(tfjs_core_1.zeros([1, 3, 4], 'int32'), 'int32');
+        expect(utils.countParamsInWeights([weight1])).toEqual(12);
+    });
+    it('Two weights, mixed types and shapes', function () {
+        var weight1 = new variables_1.LayerVariable(tfjs_core_1.scalar(42));
+        var weight2 = new variables_1.LayerVariable(tfjs_core_1.zeros([2, 3]));
+        var weight3 = new variables_1.LayerVariable(tfjs_core_1.zeros([1, 3, 4], 'int32'), 'int32');
+        expect(utils.countParamsInWeights([weight1, weight2, weight3])).toEqual(19);
     });
 });
 //# sourceMappingURL=generic_utils_test.js.map

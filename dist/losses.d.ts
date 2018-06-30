@@ -1,5 +1,6 @@
 import { Tensor } from '@tensorflow/tfjs-core';
 import { LossOrMetricFn } from './types';
+export declare function l2Normalize(x: Tensor, axis?: number): Tensor;
 export declare function meanSquaredError(yTrue: Tensor, yPred: Tensor): Tensor;
 export declare function meanAbsoluteError(yTrue: Tensor, yPred: Tensor): Tensor;
 export declare function meanAbsolutePercentageError(yTrue: Tensor, yPred: Tensor): Tensor;
@@ -8,8 +9,9 @@ export declare function squaredHinge(yTrue: Tensor, yPred: Tensor): Tensor;
 export declare function hinge(yTrue: Tensor, yPred: Tensor): Tensor;
 export declare function categoricalHinge(yTrue: Tensor, yPred: Tensor): Tensor;
 export declare function logcosh(yTrue: Tensor, yPred: Tensor): Tensor;
-export declare function categoricalCrossentropy(yTrue: Tensor, yPred: Tensor): Tensor;
-export declare function sparseCategoricalCrossentropy(yTrue: Tensor, yPred: Tensor): Tensor;
+export declare function categoricalCrossentropy(target: Tensor, output: Tensor, fromLogits?: boolean): Tensor;
+export declare function sparseCategoricalCrossentropy(target: Tensor, output: Tensor, fromLogits?: boolean): Tensor;
+export declare function sigmoidCrossEntropyWithLogits(target: Tensor, output: Tensor): Tensor;
 export declare function binaryCrossentropy(yTrue: Tensor, yPred: Tensor): Tensor;
 export declare function kullbackLeiblerDivergence(yTrue: Tensor, yPred: Tensor): Tensor;
 export declare function poisson(yTrue: Tensor, yPred: Tensor): Tensor;

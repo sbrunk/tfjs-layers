@@ -4,7 +4,7 @@ import { Constraint, ConstraintIdentifier } from '../constraints';
 import { Initializer, InitializerIdentifier } from '../initializers';
 import { Regularizer, RegularizerIdentifier } from '../regularizers';
 import { Kwargs, Shape } from '../types';
-import { BaseConvLayerConfig, Conv2D } from './convolutional';
+import { BaseConv, BaseConvLayerConfig } from './convolutional';
 export declare function depthwiseConv2d(x: Tensor, depthwiseKernel: Tensor, strides?: [number, number], padding?: string, dataFormat?: DataFormat, dilationRate?: [number, number]): Tensor;
 export interface DepthwiseConv2DLayerConfig extends BaseConvLayerConfig {
     kernelSize: number | [number, number];
@@ -13,7 +13,7 @@ export interface DepthwiseConv2DLayerConfig extends BaseConvLayerConfig {
     depthwiseConstraint?: ConstraintIdentifier | Constraint;
     depthwiseRegularizer?: RegularizerIdentifier | Regularizer;
 }
-export declare class DepthwiseConv2D extends Conv2D {
+export declare class DepthwiseConv2D extends BaseConv {
     static className: string;
     private readonly depthMultiplier;
     private readonly depthwiseInitializer;

@@ -60,6 +60,7 @@ var losses = require("../losses");
 var Metrics = require("../metrics");
 var optimizers = require("../optimizers");
 var generic_utils_1 = require("../utils/generic_utils");
+var layer_utils_1 = require("../utils/layer_utils");
 var math_utils_1 = require("../utils/math_utils");
 var executor_1 = require("./executor");
 var topology_1 = require("./topology");
@@ -254,15 +255,17 @@ function sliceArrays(arrays, start, stop) {
     }
 }
 function sliceArraysByIndices(arrays, indices) {
-    if (arrays == null) {
-        return null;
-    }
-    else if (Array.isArray(arrays)) {
-        return arrays.map(function (array) { return sliceArraysByIndices(array, indices); });
-    }
-    else {
-        return K.gather(arrays, indices.dtype === 'int32' ? indices : indices.toInt());
-    }
+    return tfc.tidy(function () {
+        if (arrays == null) {
+            return null;
+        }
+        else if (Array.isArray(arrays)) {
+            return arrays.map(function (array) { return sliceArraysByIndices(array, indices); });
+        }
+        else {
+            return K.gather(arrays, indices.dtype === 'int32' ? indices : indices.toInt());
+        }
+    });
 }
 exports.sliceArraysByIndices = sliceArraysByIndices;
 function checkInputData(data, names, shapes, checkBatchAxis, exceptionPrefix) {
@@ -348,6 +351,15 @@ var Model = (function (_super) {
     function Model(config) {
         return _super.call(this, config) || this;
     }
+    Model.prototype.summary = function (lineLength, positions, printFn) {
+        if (printFn === void 0) { printFn = console.log; }
+        if (!this.built) {
+            throw new errors_1.ValueError("This model has never been called, thus its weights have not been " +
+                "created yet. So no summary can be displayed. Build the model " +
+                "first (e.g., by calling it on some test data).");
+        }
+        layer_utils_1.printSummary(this, lineLength, positions, printFn);
+    };
     Model.prototype.compile = function (config) {
         var _this = this;
         if (config.loss == null) {
@@ -552,6 +564,76 @@ var Model = (function (_super) {
         }
         return numSamples;
     };
+    Model.prototype.execute = function (inputs, outputs) {
+        if (Array.isArray(outputs) && outputs.length === 0) {
+            throw new errors_1.ValueError('`outputs` is an empty Array, which is not allowed.');
+        }
+        var outputsIsArray = Array.isArray(outputs);
+        var outputNames = (outputsIsArray ? outputs :
+            [outputs]);
+        var outputSymbolicTensors = this.retrieveSymbolicTensors(outputNames);
+        var feedDict = new executor_1.FeedDict();
+        if (inputs instanceof tfjs_core_1.Tensor) {
+            inputs = [inputs];
+        }
+        if (Array.isArray(inputs)) {
+            if (inputs.length !== this.inputs.length) {
+                throw new errors_1.ValueError("The number of inputs provided (" + inputs.length + ") " +
+                    "does not match the number of inputs of this model " +
+                    ("(" + this.inputs.length + ")."));
+            }
+            for (var i = 0; i < this.inputs.length; ++i) {
+                feedDict.add(this.inputs[i], inputs[i]);
+            }
+        }
+        else {
+            for (var _i = 0, _a = this.inputs; _i < _a.length; _i++) {
+                var input = _a[_i];
+                var tensorValue = inputs[input.name];
+                if (tensorValue == null) {
+                    throw new errors_1.ValueError("No value is provided for the model's input " + input.name);
+                }
+                feedDict.add(input, tensorValue);
+            }
+        }
+        var executeOutputs = executor_1.execute(outputSymbolicTensors, feedDict);
+        return outputsIsArray ? executeOutputs : executeOutputs[0];
+    };
+    Model.prototype.retrieveSymbolicTensors = function (symbolicTensorNames) {
+        var outputSymbolicTensors = generic_utils_1.pyListRepeat(null, symbolicTensorNames.length);
+        var outputsRemaining = symbolicTensorNames.length;
+        for (var _i = 0, _a = this.layers; _i < _a.length; _i++) {
+            var layer = _a[_i];
+            var layerOutputs = Array.isArray(layer.output) ?
+                layer.output :
+                [layer.output];
+            var layerOutputNames = layerOutputs.map(function (output) { return output.name; });
+            for (var i = 0; i < symbolicTensorNames.length; ++i) {
+                var index = layerOutputNames.indexOf(symbolicTensorNames[i]);
+                if (index !== -1) {
+                    outputSymbolicTensors[i] = layerOutputs[index];
+                    outputsRemaining--;
+                }
+                if (outputsRemaining === 0) {
+                    break;
+                }
+            }
+            if (outputsRemaining === 0) {
+                break;
+            }
+        }
+        if (outputsRemaining > 0) {
+            var remainingNames_1 = [];
+            outputSymbolicTensors.forEach(function (tensor, i) {
+                if (tensor == null) {
+                    remainingNames_1.push(symbolicTensorNames[i]);
+                }
+            });
+            throw new errors_1.ValueError("Cannot find SymbolicTensors for output name(s): " +
+                ("" + JSON.stringify(remainingNames_1)));
+        }
+        return outputSymbolicTensors;
+    };
     Model.prototype.predictLoop = function (ins, batchSize, verbose) {
         var _this = this;
         if (batchSize === void 0) { batchSize = 32; }
@@ -640,7 +722,7 @@ var Model = (function (_super) {
         if (initialEpoch === void 0) { initialEpoch = 0; }
         return __awaiter(this, void 0, void 0, function () {
             var _this = this;
-            var doValidation, numTrainSamples, indexArray, callbackList, _loop_4, epoch;
+            var doValidation, numTrainSamples, indexArray, callbackList, _loop_4, this_1, epoch, state_1;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
@@ -694,8 +776,9 @@ var Model = (function (_super) {
                         return [4, callbackList.onTrainBegin()];
                     case 1:
                         _a.sent();
+                        this.stopTraining = false;
                         _loop_4 = function (epoch) {
-                            var epochLogs, epochIndexArray1D_1, batches_1, _loop_5, batchIndex;
+                            var epochLogs, epochIndexArray1D_1, batches_1, _loop_5, batchIndex, state_2;
                             return __generator(this, function (_a) {
                                 switch (_a.label) {
                                     case 0: return [4, callbackList.onEpochBegin(epoch)];
@@ -752,6 +835,9 @@ var Model = (function (_super) {
                                                     case 2:
                                                         _a.sent();
                                                         callbacks_1.disposeTensorsInLogs(batchLogs);
+                                                        if (this_1.stopTraining) {
+                                                            return [2, "break"];
+                                                        }
                                                         return [2];
                                                 }
                                             });
@@ -762,7 +848,9 @@ var Model = (function (_super) {
                                         if (!(batchIndex < batches_1.length)) return [3, 6];
                                         return [5, _loop_5(batchIndex)];
                                     case 4:
-                                        _a.sent();
+                                        state_2 = _a.sent();
+                                        if (state_2 === "break")
+                                            return [3, 6];
                                         _a.label = 5;
                                     case 5:
                                         ++batchIndex;
@@ -773,17 +861,23 @@ var Model = (function (_super) {
                                     case 7: return [4, callbackList.onEpochEnd(epoch, epochLogs)];
                                     case 8:
                                         _a.sent();
+                                        if (this_1.stopTraining) {
+                                            return [2, "break"];
+                                        }
                                         return [2];
                                 }
                             });
                         };
+                        this_1 = this;
                         epoch = initialEpoch;
                         _a.label = 2;
                     case 2:
                         if (!(epoch < epochs)) return [3, 5];
                         return [5, _loop_4(epoch)];
                     case 3:
-                        _a.sent();
+                        state_1 = _a.sent();
+                        if (state_1 === "break")
+                            return [3, 5];
                         _a.label = 4;
                     case 4:
                         ++epoch;
@@ -888,107 +982,120 @@ var Model = (function (_super) {
         if (config === void 0) { config = {}; }
         return __awaiter(this, void 0, void 0, function () {
             var _this = this;
-            var batchSize, standardizedOuts, inputs, targets, doValidation, valX, valY, valIns, valStandardized, splitAt, originalBatchSize, ins, trainFunction, outLabels, valFunction, callbackMetrics, callbacks;
+            var batchSize, standardizedOuts, inputs, targets, doValidation, valX, valY, valIns, needValidationDisposal, valStandardized, splitAt, originalBatchSize, ins, trainFunction, outLabels, valFunction, callbackMetrics, callbacks, out;
             return __generator(this, function (_a) {
-                batchSize = config.batchSize == null ? 32 : config.batchSize;
-                standardizedOuts = this.standardizeUserData(x, y, false, batchSize);
-                inputs = standardizedOuts[0];
-                targets = standardizedOuts[1];
-                doValidation = false;
-                if (config.validationData != null && config.validationData.length > 0) {
-                    doValidation = true;
-                    if (config.validationData.length === 2) {
-                        valX = config.validationData[0];
-                        valY = config.validationData[1];
-                    }
-                    else if (config.validationData.length === 3) {
-                        throw new errors_1.NotImplementedError('validationData including sample weights is not supported yet.');
-                    }
-                    else {
-                        throw new errors_1.ValueError("When passing validation data, it must contain 2 (valX, valY) " +
-                            "or 3 (valX, valY, valSampleWeight) items; " +
-                            (config.validationData + " is invalid."));
-                    }
-                    valStandardized = this.standardizeUserData(valX, valY, true, batchSize);
-                    valX = valStandardized[0];
-                    valY = valStandardized[1];
-                    valIns = valX.concat(valY);
-                }
-                else if (config.validationSplit != null && config.validationSplit > 0 &&
-                    config.validationSplit < 1) {
-                    doValidation = true;
-                    splitAt = Math.floor(inputs[0].shape[0] * (1 - config.validationSplit));
-                    originalBatchSize = inputs[0].shape[0];
-                    valX = sliceArrays(inputs, splitAt, originalBatchSize);
-                    inputs = sliceArrays(inputs, 0, splitAt);
-                    valY = sliceArrays(targets, splitAt, originalBatchSize);
-                    targets = sliceArrays(targets, 0, splitAt);
-                    valIns = valX.concat(valY);
-                }
-                else if (config.validationSteps != null) {
-                    doValidation = true;
-                }
-                ins = inputs.concat(targets);
-                this.checkTrainableWeightsConsistency();
-                trainFunction = function (data) {
-                    var losses = [];
-                    var lossValues = [];
-                    var inputs = data.slice(0, _this.inputs.length);
-                    var targets = data.slice(_this.inputs.length, _this.inputs.length + _this.outputs.length);
-                    var metricsValues = [];
-                    var totalLossFunction = function () {
-                        var feeds = [];
-                        for (var i = 0; i < _this.inputs.length; ++i) {
-                            feeds.push({ key: _this.inputs[i], value: inputs[i] });
-                        }
-                        var feedDict = new executor_1.FeedDict(feeds);
-                        var outputs = executor_1.execute(_this.outputs, feedDict, { 'training': true });
-                        var totalLoss;
-                        for (var i = 0; i < _this.lossFunctions.length; ++i) {
-                            var lossFunction = _this.lossFunctions[i];
-                            var loss = lossFunction(targets[i], outputs[i]);
-                            losses.push(loss);
-                            var meanLoss = tfc.mean(loss);
-                            lossValues.push(meanLoss);
-                            if (i === 0) {
-                                totalLoss = loss;
+                switch (_a.label) {
+                    case 0:
+                        batchSize = config.batchSize == null ? 32 : config.batchSize;
+                        standardizedOuts = this.standardizeUserData(x, y, false, batchSize);
+                        inputs = standardizedOuts[0];
+                        targets = standardizedOuts[1];
+                        doValidation = false;
+                        needValidationDisposal = false;
+                        if (config.validationData != null && config.validationData.length > 0) {
+                            doValidation = true;
+                            if (config.validationData.length === 2) {
+                                valX = config.validationData[0];
+                                valY = config.validationData[1];
+                            }
+                            else if (config.validationData.length === 3) {
+                                throw new errors_1.NotImplementedError('validationData including sample weights is not supported yet.');
                             }
                             else {
-                                totalLoss = tfc.add(totalLoss, loss);
+                                throw new errors_1.ValueError("When passing validation data, it must contain 2 (valX, valY) " +
+                                    "or 3 (valX, valY, valSampleWeight) items; " +
+                                    (config.validationData + " is invalid."));
                             }
+                            valStandardized = this.standardizeUserData(valX, valY, true, batchSize);
+                            valX = valStandardized[0];
+                            valY = valStandardized[1];
+                            valIns = valX.concat(valY);
                         }
-                        for (var i = 0; i < _this.metricsTensors.length; ++i) {
-                            var metric = _this.metricsTensors[i][0];
-                            var outputIndex = _this.metricsTensors[i][1];
-                            var meanMetric = tfc.mean(metric(targets[outputIndex], outputs[outputIndex]));
-                            tfc.keep(meanMetric);
-                            metricsValues.push(meanMetric);
+                        else if (config.validationSplit != null && config.validationSplit > 0 &&
+                            config.validationSplit < 1) {
+                            doValidation = true;
+                            splitAt = Math.floor(inputs[0].shape[0] * (1 - config.validationSplit));
+                            originalBatchSize = inputs[0].shape[0];
+                            valX = sliceArrays(inputs, splitAt, originalBatchSize);
+                            inputs = sliceArrays(inputs, 0, splitAt);
+                            valY = sliceArrays(targets, splitAt, originalBatchSize);
+                            targets = sliceArrays(targets, 0, splitAt);
+                            needValidationDisposal = true;
+                            valIns = valX.concat(valY);
                         }
-                        totalLoss = tfc.mean(totalLoss);
-                        _this.calculateLosses().forEach(function (regularizerLoss) {
-                            totalLoss = tfc.add(totalLoss, regularizerLoss);
-                        });
-                        return totalLoss;
-                    };
-                    var variables = _this.collectedTrainableWeights.map(function (param) { return param.read(); });
-                    var returnCost = true;
-                    var totalLossValue = _this.optimizer.minimize(totalLossFunction, returnCost, variables);
-                    return [totalLossValue].concat(metricsValues);
-                };
-                outLabels = this.getDedupedMetricsNames();
-                if (doValidation) {
-                    this.makeTestFunction();
-                    valFunction = this.testFunction;
-                    callbackMetrics =
-                        outLabels.slice().concat(outLabels.map(function (n) { return 'val_' + n; }));
+                        else if (config.validationSteps != null) {
+                            doValidation = true;
+                        }
+                        ins = inputs.concat(targets);
+                        this.checkTrainableWeightsConsistency();
+                        trainFunction = function (data) {
+                            var losses = [];
+                            var lossValues = [];
+                            var inputs = data.slice(0, _this.inputs.length);
+                            var targets = data.slice(_this.inputs.length, _this.inputs.length + _this.outputs.length);
+                            var metricsValues = [];
+                            var totalLossFunction = function () {
+                                var feeds = [];
+                                for (var i = 0; i < _this.inputs.length; ++i) {
+                                    feeds.push({ key: _this.inputs[i], value: inputs[i] });
+                                }
+                                var feedDict = new executor_1.FeedDict(feeds);
+                                var outputs = executor_1.execute(_this.outputs, feedDict, { 'training': true });
+                                var totalLoss;
+                                for (var i = 0; i < _this.lossFunctions.length; ++i) {
+                                    var lossFunction = _this.lossFunctions[i];
+                                    var loss = lossFunction(targets[i], outputs[i]);
+                                    losses.push(loss);
+                                    var meanLoss = tfc.mean(loss);
+                                    lossValues.push(meanLoss);
+                                    if (i === 0) {
+                                        totalLoss = loss;
+                                    }
+                                    else {
+                                        totalLoss = tfc.add(totalLoss, loss);
+                                    }
+                                }
+                                for (var i = 0; i < _this.metricsTensors.length; ++i) {
+                                    var metric = _this.metricsTensors[i][0];
+                                    var outputIndex = _this.metricsTensors[i][1];
+                                    var meanMetric = tfc.mean(metric(targets[outputIndex], outputs[outputIndex]));
+                                    tfc.keep(meanMetric);
+                                    metricsValues.push(meanMetric);
+                                }
+                                totalLoss = tfc.mean(totalLoss);
+                                _this.calculateLosses().forEach(function (regularizerLoss) {
+                                    totalLoss = tfc.add(totalLoss, regularizerLoss);
+                                });
+                                return totalLoss;
+                            };
+                            var variables = _this.collectedTrainableWeights.map(function (param) { return param.read(); });
+                            var returnCost = true;
+                            var totalLossValue = _this.optimizer.minimize(totalLossFunction, returnCost, variables);
+                            return [totalLossValue].concat(metricsValues);
+                        };
+                        outLabels = this.getDedupedMetricsNames();
+                        if (doValidation) {
+                            this.makeTestFunction();
+                            valFunction = this.testFunction;
+                            callbackMetrics =
+                                outLabels.slice().concat(outLabels.map(function (n) { return 'val_' + n; }));
+                        }
+                        else {
+                            valFunction = null;
+                            valIns = [];
+                            callbackMetrics = outLabels.slice();
+                        }
+                        callbacks = callbacks_1.standardizeCallbacks(config.callbacks);
+                        return [4, this.fitLoop(trainFunction, ins, outLabels, batchSize, config.epochs, config.verbose, callbacks, valFunction, valIns, config.shuffle, callbackMetrics, null, null, null)];
+                    case 1:
+                        out = _a.sent();
+                        if (needValidationDisposal) {
+                            valIns.forEach(function (tensor) { return tensor.dispose(); });
+                            inputs.forEach(function (tensor) { return tensor.dispose(); });
+                            targets.forEach(function (tensor) { return tensor.dispose(); });
+                        }
+                        return [2, out];
                 }
-                else {
-                    valFunction = null;
-                    valIns = [];
-                    callbackMetrics = outLabels.slice();
-                }
-                callbacks = callbacks_1.standardizeCallbacks(config.callbacks);
-                return [2, this.fitLoop(trainFunction, ins, outLabels, batchSize, config.epochs, config.verbose, callbacks, valFunction, valIns, config.shuffle, callbackMetrics, null, null, null)];
             });
         });
     };
@@ -1043,6 +1150,9 @@ var Model = (function (_super) {
     };
     Model.className = 'Model';
     __decorate([
+        tfjs_core_1.doc({ heading: 'Models', subheading: 'Classes' })
+    ], Model.prototype, "summary", null);
+    __decorate([
         tfjs_core_1.doc({ heading: 'Models', subheading: 'Classes', configParamIndices: [0] })
     ], Model.prototype, "compile", null);
     __decorate([
@@ -1057,6 +1167,9 @@ var Model = (function (_super) {
     __decorate([
         tfjs_core_1.doc({ heading: 'Models', subheading: 'Classes', configParamIndices: [2] })
     ], Model.prototype, "fit", null);
+    __decorate([
+        tfjs_core_1.doc({ heading: 'Models', subheading: 'Classes', configParamIndices: [1] })
+    ], Model.prototype, "save", null);
     Model = __decorate([
         tfjs_core_1.doc({ heading: 'Models', subheading: 'Classes' })
     ], Model);

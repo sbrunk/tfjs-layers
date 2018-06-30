@@ -1,5 +1,6 @@
 import { DataType, serialization, Tensor } from '@tensorflow/tfjs-core';
 import { Shape } from '../types';
+import { LayerVariable } from '../variables';
 export declare function pyListRepeat(value: any, numValues: number): any[];
 export declare function assert(val: boolean, message?: string): void;
 export declare function count<T>(array: T[], refernce: T): number;
@@ -25,3 +26,5 @@ export declare function stringsEqual(xs: string[], ys: string[]): boolean;
 export declare function unique<T>(xs: T[]): T[];
 export declare function isObjectEmpty(obj: {}): boolean;
 export declare function checkStringTypeUnionValue(values: string[], label: string, value: string): void;
+export declare function checkArrayTypeAndLength(x: any, expectedType: string, minLength?: number, maxLength?: number): boolean;
+export declare function countParamsInWeights(weights: LayerVariable[]): number;

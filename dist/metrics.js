@@ -5,6 +5,7 @@ var tfjs_core_1 = require("@tensorflow/tfjs-core");
 var K = require("./backend/tfjs_backend");
 var errors_1 = require("./errors");
 var losses_1 = require("./losses");
+var losses_2 = require("./losses");
 function binaryAccuracy(yTrue, yPred) {
     return tfjs_core_1.tidy(function () {
         var threshold = K.scalarTimesArray(K.getScalar(0.5), tfc.onesLike(yPred));
@@ -18,7 +19,7 @@ function categoricalAccuracy(yTrue, yPred) {
 }
 exports.categoricalAccuracy = categoricalAccuracy;
 function binaryCrossentropy(yTrue, yPred) {
-    return tfjs_core_1.tidy(function () { return tfc.mean(K.binaryCrossentropy(yTrue, yPred), -1); });
+    return losses_2.binaryCrossentropy(yTrue, yPred);
 }
 exports.binaryCrossentropy = binaryCrossentropy;
 function sparseCategoricalAccuracy(yTrue, yPred) {

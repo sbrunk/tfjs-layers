@@ -4,6 +4,15 @@ var tfc = require("@tensorflow/tfjs-core");
 var tfjs_core_1 = require("@tensorflow/tfjs-core");
 var K = require("./backend/tfjs_backend");
 var errors_1 = require("./errors");
+function l2Normalize(x, axis) {
+    return tfjs_core_1.tidy(function () {
+        var squareSum = tfc.sum(K.square(x), axis, true);
+        var epsilonTensor = K.scalarTimesArray(tfjs_core_1.scalar(K.epsilon()), tfc.onesLike(x));
+        var norm = tfc.sqrt(tfc.maximum(squareSum, epsilonTensor));
+        return tfc.div(x, norm);
+    });
+}
+exports.l2Normalize = l2Normalize;
 function meanSquaredError(yTrue, yPred) {
     return tfjs_core_1.tidy(function () { return tfc.mean(K.square(tfc.sub(yPred, yTrue)), -1); });
 }
@@ -69,16 +78,49 @@ function logcosh(yTrue, yPred) {
     });
 }
 exports.logcosh = logcosh;
-function categoricalCrossentropy(yTrue, yPred) {
-    return tfjs_core_1.tidy(function () { return K.categoricalCrossentropy(yTrue, yPred); });
+function categoricalCrossentropy(target, output, fromLogits) {
+    if (fromLogits === void 0) { fromLogits = false; }
+    return tfjs_core_1.tidy(function () {
+        if (fromLogits) {
+            output = tfc.softmax(output);
+        }
+        else {
+            var outputSum = tfc.sum(output, K.shape(output).length - 1, true);
+            output = tfc.div(output, outputSum);
+        }
+        output = tfc.clipByValue(output, K.epsilon(), 1 - K.epsilon());
+        return tfc.neg(tfc.sum(tfc.mul(target.toFloat(), tfc.log(output)), K.shape(output).length - 1));
+    });
 }
 exports.categoricalCrossentropy = categoricalCrossentropy;
-function sparseCategoricalCrossentropy(yTrue, yPred) {
-    return tfjs_core_1.tidy(function () { return K.sparseCategoricalCrossentropy(yTrue, yPred); });
+function sparseCategoricalCrossentropy(target, output, fromLogits) {
+    if (fromLogits === void 0) { fromLogits = false; }
+    return tfjs_core_1.tidy(function () {
+        var flatTarget = tfc.floor(K.flatten(target)).toInt();
+        var outputShape = K.shape(output);
+        var oneHotTarget = tfc.oneHot(flatTarget, outputShape[outputShape.length - 1])
+            .reshape(outputShape);
+        return categoricalCrossentropy(oneHotTarget, output, fromLogits);
+    });
 }
 exports.sparseCategoricalCrossentropy = sparseCategoricalCrossentropy;
+function sigmoidCrossEntropyWithLogits(target, output) {
+    return tfjs_core_1.tidy(function () {
+        var maxOutput = tfc.maximum(output, tfc.zerosLike(output));
+        var outputXTarget = tfc.mul(output, target);
+        var sigmoidOutput = tfc.log(tfc.add(K.getScalar(1), tfc.exp(tfc.neg(tfc.abs(output)))));
+        var result = tfc.add(tfc.sub(maxOutput, outputXTarget), sigmoidOutput);
+        return result;
+    });
+}
+exports.sigmoidCrossEntropyWithLogits = sigmoidCrossEntropyWithLogits;
 function binaryCrossentropy(yTrue, yPred) {
-    return tfjs_core_1.tidy(function () { return tfc.mean(K.binaryCrossentropy(yTrue, yPred), -1); });
+    return tfjs_core_1.tidy(function () {
+        var y;
+        y = tfc.clipByValue(yPred, K.epsilon(), 1 - K.epsilon());
+        y = tfc.log(tfc.div(y, tfc.sub(tfc.onesLike(y), y)));
+        return tfc.mean(sigmoidCrossEntropyWithLogits(yTrue, y), -1);
+    });
 }
 exports.binaryCrossentropy = binaryCrossentropy;
 function kullbackLeiblerDivergence(yTrue, yPred) {
@@ -98,8 +140,8 @@ function poisson(yTrue, yPred) {
 exports.poisson = poisson;
 function cosineProximity(yTrue, yPred) {
     return tfjs_core_1.tidy(function () {
-        var trueNormalized = K.l2Normalize(yTrue, -1);
-        var predNormalized = K.l2Normalize(yPred, -1);
+        var trueNormalized = l2Normalize(yTrue, -1);
+        var predNormalized = l2Normalize(yPred, -1);
         var trueXPred = tfc.mul(trueNormalized, predNormalized);
         return tfc.neg(tfc.sum(trueXPred, -1));
     });

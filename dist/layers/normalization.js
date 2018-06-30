@@ -10,6 +10,7 @@ var __extends = (this && this.__extends) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+var tfc = require("@tensorflow/tfjs-core");
 var tfjs_core_1 = require("@tensorflow/tfjs-core");
 var K = require("../backend/tfjs_backend");
 var constraints_1 = require("../constraints");
@@ -18,7 +19,70 @@ var errors_1 = require("../errors");
 var initializers_1 = require("../initializers");
 var regularizers_1 = require("../regularizers");
 var generic_utils = require("../utils/generic_utils");
-var math_utils_1 = require("../utils/math_utils");
+var math_utils = require("../utils/math_utils");
+function batchNormalization(x, mean, variance, beta, gamma, epsilon) {
+    if (epsilon === void 0) { epsilon = 1e-3; }
+    var out;
+    if (x.rank === 2) {
+        out = tfc.batchNormalization2d(x, mean, variance, epsilon, gamma, beta);
+    }
+    else if (x.rank === 3) {
+        out = tfc.batchNormalization3d(x, mean, variance, epsilon, gamma, beta);
+    }
+    else if (x.rank === 4) {
+        out = tfc.batchNormalization4d(x, mean, variance, epsilon, gamma, beta);
+    }
+    else {
+        throw new errors_1.NotImplementedError("batchNormalization is not implememnted for array of rank " + x.rank + " " +
+            "yet");
+    }
+    return out;
+}
+exports.batchNormalization = batchNormalization;
+function regularNormalizeBatchInTraining(x, gamma, beta, reductionAxes, epsilon) {
+    if (epsilon === void 0) { epsilon = 1e-3; }
+    return tfjs_core_1.tidy(function () {
+        var meanAndVariance = tfc.moments(x, reductionAxes);
+        var mean = meanAndVariance.mean;
+        var variance = meanAndVariance.variance;
+        var normed = batchNormalization(x, mean, variance, beta, gamma, epsilon);
+        return [normed, mean, variance];
+    });
+}
+function broadcastNormalizeBatchInTraining(x, gamma, beta, reductionAxes, epsilon) {
+    if (epsilon === void 0) { epsilon = 1e-3; }
+    return tfjs_core_1.tidy(function () {
+        var meanAndVariance = tfc.moments(x, reductionAxes);
+        var mean = meanAndVariance.mean;
+        var variance = meanAndVariance.variance;
+        var targetShape = [];
+        for (var _i = 0, _a = math_utils.range(0, x.rank); _i < _a.length; _i++) {
+            var axis = _a[_i];
+            if (reductionAxes.indexOf(axis) !== -1) {
+                targetShape.push(1);
+            }
+            else {
+                targetShape.push(x.shape[axis]);
+            }
+        }
+        var broadcastMean = mean.reshape(targetShape);
+        var broadcastVariance = variance.reshape(targetShape);
+        var broadcastGamma = gamma == null ? null : gamma.reshape(targetShape);
+        var broadcastBeta = beta == null ? null : beta.reshape(targetShape);
+        var normed = batchNormalization(x, broadcastMean, broadcastVariance, broadcastBeta, broadcastGamma, epsilon);
+        return [normed, mean, variance];
+    });
+}
+function normalizeBatchInTraining(x, gamma, beta, reductionAxes, epsilon) {
+    if (epsilon === void 0) { epsilon = 1e-3; }
+    if (tfjs_core_1.util.arraysEqual(reductionAxes.slice().sort(), math_utils.range(0, x.rank - 1))) {
+        return regularNormalizeBatchInTraining(x, gamma, beta, reductionAxes, epsilon);
+    }
+    else {
+        return broadcastNormalizeBatchInTraining(x, gamma, beta, reductionAxes, epsilon);
+    }
+}
+exports.normalizeBatchInTraining = normalizeBatchInTraining;
 var BatchNormalization = (function (_super) {
     __extends(BatchNormalization, _super);
     function BatchNormalization(config) {
@@ -72,37 +136,37 @@ var BatchNormalization = (function (_super) {
             var input = generic_utils.getExactlyOneTensor(inputs);
             var inputShape = K.shape(input);
             var ndim = inputShape.length;
-            var reductionAxes = math_utils_1.range(0, ndim);
+            var reductionAxes = math_utils.range(0, ndim);
             var axis = _this.axis >= 0 ? _this.axis : (_this.axis + ndim);
             reductionAxes.splice(axis, 1);
             var broadcastShape = generic_utils.pyListRepeat(1, ndim);
             broadcastShape[axis] = inputShape[axis];
             var sortedReductionAxes = reductionAxes.slice();
             sortedReductionAxes.sort();
-            var needsBroadcasting = !tfjs_core_1.util.arraysEqual(sortedReductionAxes, math_utils_1.range(0, ndim).slice(0, ndim - 1));
+            var needsBroadcasting = !tfjs_core_1.util.arraysEqual(sortedReductionAxes, math_utils.range(0, ndim).slice(0, ndim - 1));
             var normalizeInference = function () {
                 if (needsBroadcasting) {
                     var broadcastMovingMean = _this.movingMean.read().reshape(broadcastShape);
                     var broadcastMovingVariance = _this.movingVariance.read().reshape(broadcastShape);
                     var broadcastBeta = _this.center ? _this.beta.read().reshape(broadcastShape) : null;
                     var broadcastGamma = _this.scale ? _this.gamma.read().reshape(broadcastShape) : null;
-                    return K.batchNormalization(input, broadcastMovingMean, broadcastMovingVariance, broadcastBeta, broadcastGamma, _this.epsilon);
+                    return batchNormalization(input, broadcastMovingMean, broadcastMovingVariance, broadcastBeta, broadcastGamma, _this.epsilon);
                 }
                 else {
-                    return K.batchNormalization(input, _this.movingMean.read(), _this.movingVariance.read(), _this.beta == null ? null : _this.beta.read(), _this.gamma == null ? null : _this.gamma.read(), _this.epsilon);
+                    return batchNormalization(input, _this.movingMean.read(), _this.movingVariance.read(), _this.beta == null ? null : _this.beta.read(), _this.gamma == null ? null : _this.gamma.read(), _this.epsilon);
                 }
             };
             if (!training) {
                 return normalizeInference();
             }
-            var _a = K.normalizeBatchInTraining(input, _this.gamma.read(), _this.beta.read(), reductionAxes, _this.epsilon), normedTraining = _a[0], mean = _a[1], variance = _a[2];
-            var sampleSize = math_utils_1.arrayProd(reductionAxes.map(function (axis) { return input.shape[axis]; }));
+            var _a = normalizeBatchInTraining(input, _this.gamma.read(), _this.beta.read(), reductionAxes, _this.epsilon), normedTraining = _a[0], mean = _a[1], variance = _a[2];
+            var sampleSize = math_utils.arrayProd(reductionAxes.map(function (axis) { return input.shape[axis]; }));
             var varianceDebiased = variance.mul(K.getScalar(sampleSize / (sampleSize - (1 + _this.epsilon))));
             var updateMovingMeanAndVariance = function () {
                 _this.stepCount++;
-                var newMovingMean = tfjs_core_1.movingAverage(_this.movingMean.read(), mean, _this.momentum, _this.stepCount);
+                var newMovingMean = tfc.movingAverage(_this.movingMean.read(), mean, _this.momentum, _this.stepCount);
                 _this.movingMean.write(newMovingMean);
-                var newMovingVariance = tfjs_core_1.movingAverage(_this.movingVariance.read(), varianceDebiased, _this.momentum, _this.stepCount);
+                var newMovingVariance = tfc.movingAverage(_this.movingVariance.read(), varianceDebiased, _this.momentum, _this.stepCount);
                 _this.movingVariance.write(newMovingVariance);
             };
             updateMovingMeanAndVariance();

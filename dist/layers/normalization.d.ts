@@ -4,6 +4,8 @@ import { Layer, LayerConfig } from '../engine/topology';
 import { Initializer, InitializerIdentifier } from '../initializers';
 import { Regularizer, RegularizerIdentifier } from '../regularizers';
 import { Kwargs, Shape } from '../types';
+export declare function batchNormalization(x: Tensor, mean: Tensor, variance: Tensor, beta?: Tensor, gamma?: Tensor, epsilon?: number): Tensor;
+export declare function normalizeBatchInTraining(x: Tensor, gamma: Tensor, beta: Tensor, reductionAxes: number[], epsilon?: number): [Tensor, Tensor, Tensor];
 export interface BatchNormalizationLayerConfig extends LayerConfig {
     axis?: number;
     momentum?: number;

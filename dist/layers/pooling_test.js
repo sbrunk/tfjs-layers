@@ -325,6 +325,34 @@ describe('Pooling Layers 2D: Symbolic', function () {
         var poolMode = poolModes_6[_i];
         _loop_13(poolMode);
     }
+    var stridesValues = [1, [1, 1], [2, 1]];
+    var _loop_18 = function (strides) {
+        it("custom strides: " + strides, function () {
+            var inputShape = [2, 16, 11, 3];
+            var symbolicInput = new types_1.SymbolicTensor('float32', inputShape, null, [], null);
+            var poolingLayer = tfl.layers.maxPooling2d({ poolSize: [2, 2], strides: strides });
+            var output = poolingLayer.apply(symbolicInput);
+            if (Array.isArray(strides) && tfjs_core_1.util.arraysEqual(strides, [1, 1])) {
+                expect(output.shape).toEqual([2, 15, 10, 3]);
+            }
+            else if (Array.isArray(strides) && tfjs_core_1.util.arraysEqual(strides, [2, 1])) {
+                expect(output.shape).toEqual([2, 8, 10, 3]);
+            }
+            else {
+                expect(output.shape).toEqual([2, 15, 10, 3]);
+            }
+        });
+    };
+    for (var _a = 0, stridesValues_1 = stridesValues; _a < stridesValues_1.length; _a++) {
+        var strides = stridesValues_1[_a];
+        _loop_18(strides);
+    }
+    it('Incorrect strides array length leads to error', function () {
+        expect(function () { return tfl.layers.maxPooling2d({ poolSize: 2, strides: [2] }); })
+            .toThrowError(/expected to have a length of 2/);
+        expect(function () { return tfl.layers.maxPooling2d({ poolSize: 2, strides: [2, 3, 3] }); })
+            .toThrowError(/expected to have a length of 2/);
+    });
 });
 test_utils_1.describeMathCPUAndGPU('Pooling Layers 2D: Tensor', function () {
     var x4by4Data = [10, 30, 50, 70, 20, 40, 60, 80, -10, -30, -50, -70, -20, -40, -60, -80];
@@ -332,10 +360,10 @@ test_utils_1.describeMathCPUAndGPU('Pooling Layers 2D: Tensor', function () {
     var strides = [1, 2];
     var batchSizes = [2, 4];
     var channelsArray = [1, 3];
-    var _loop_18 = function (poolMode) {
-        var _loop_19 = function (stride) {
-            var _loop_20 = function (batchSize) {
-                var _loop_21 = function (channels) {
+    var _loop_19 = function (poolMode) {
+        var _loop_20 = function (stride) {
+            var _loop_21 = function (batchSize) {
+                var _loop_22 = function (channels) {
                     var testTitle = "stride=" + stride + ", " + poolMode + ", " +
                         ("batchSize=" + batchSize + ", channels=" + channels);
                     it(testTitle, function () {
@@ -390,27 +418,27 @@ test_utils_1.describeMathCPUAndGPU('Pooling Layers 2D: Tensor', function () {
                 };
                 for (var _i = 0, channelsArray_1 = channelsArray; _i < channelsArray_1.length; _i++) {
                     var channels = channelsArray_1[_i];
-                    _loop_21(channels);
+                    _loop_22(channels);
                 }
             };
             for (var _i = 0, batchSizes_1 = batchSizes; _i < batchSizes_1.length; _i++) {
                 var batchSize = batchSizes_1[_i];
-                _loop_20(batchSize);
+                _loop_21(batchSize);
             }
         };
         for (var _i = 0, strides_2 = strides; _i < strides_2.length; _i++) {
             var stride = strides_2[_i];
-            _loop_19(stride);
+            _loop_20(stride);
         }
     };
     for (var _i = 0, poolModes_7 = poolModes; _i < poolModes_7.length; _i++) {
         var poolMode = poolModes_7[_i];
-        _loop_18(poolMode);
+        _loop_19(poolMode);
     }
 });
 describe('1D Global pooling Layers: Symbolic', function () {
     var globalPoolingLayers = [tfl.layers.globalAveragePooling1d, tfl.layers.globalMaxPooling1d];
-    var _loop_22 = function (globalPoolingLayer) {
+    var _loop_23 = function (globalPoolingLayer) {
         var testTitle = "layer=" + globalPoolingLayer.name;
         it(testTitle, function () {
             var inputShape = [2, 11, 9];
@@ -424,7 +452,7 @@ describe('1D Global pooling Layers: Symbolic', function () {
     };
     for (var _i = 0, globalPoolingLayers_1 = globalPoolingLayers; _i < globalPoolingLayers_1.length; _i++) {
         var globalPoolingLayer = globalPoolingLayers_1[_i];
-        _loop_22(globalPoolingLayer);
+        _loop_23(globalPoolingLayer);
     }
 });
 test_utils_1.describeMathCPUAndGPU('1D Global Pooling Layers: Tensor', function () {
@@ -433,7 +461,7 @@ test_utils_1.describeMathCPUAndGPU('1D Global Pooling Layers: Tensor', function 
         [[-4, 1], [0, 2], [-40, 10], [0, 20]]
     ];
     var globalPoolingLayers = [tfl.layers.globalAveragePooling1d, tfl.layers.globalMaxPooling1d];
-    var _loop_23 = function (globalPoolingLayer) {
+    var _loop_24 = function (globalPoolingLayer) {
         var testTitle = "globalPoolingLayer=" + globalPoolingLayer.name;
         it(testTitle, function () {
             var x = tfjs_core_1.tensor3d(x3DimData, [2, 4, 2]);
@@ -451,14 +479,14 @@ test_utils_1.describeMathCPUAndGPU('1D Global Pooling Layers: Tensor', function 
     };
     for (var _i = 0, globalPoolingLayers_2 = globalPoolingLayers; _i < globalPoolingLayers_2.length; _i++) {
         var globalPoolingLayer = globalPoolingLayers_2[_i];
-        _loop_23(globalPoolingLayer);
+        _loop_24(globalPoolingLayer);
     }
 });
 describe('2D Global pooling Layers: Symbolic', function () {
     var globalPoolingLayers = [tfl.layers.globalAveragePooling2d, tfl.layers.globalMaxPooling2d];
     var dataFormats = ['channelsFirst', 'channelsLast'];
-    var _loop_24 = function (globalPoolingLayer) {
-        var _loop_25 = function (dataFormat) {
+    var _loop_25 = function (globalPoolingLayer) {
+        var _loop_26 = function (dataFormat) {
             var testTitle = "layer=" + globalPoolingLayer.name + ", " + dataFormat;
             it(testTitle, function () {
                 var inputShape = [2, 16, 11, 9];
@@ -472,12 +500,12 @@ describe('2D Global pooling Layers: Symbolic', function () {
         };
         for (var _i = 0, dataFormats_3 = dataFormats; _i < dataFormats_3.length; _i++) {
             var dataFormat = dataFormats_3[_i];
-            _loop_25(dataFormat);
+            _loop_26(dataFormat);
         }
     };
     for (var _i = 0, globalPoolingLayers_3 = globalPoolingLayers; _i < globalPoolingLayers_3.length; _i++) {
         var globalPoolingLayer = globalPoolingLayers_3[_i];
-        _loop_24(globalPoolingLayer);
+        _loop_25(globalPoolingLayer);
     }
 });
 test_utils_1.describeMathCPUAndGPU('2D Global Pooling Layers: Tensor', function () {
@@ -487,8 +515,8 @@ test_utils_1.describeMathCPUAndGPU('2D Global Pooling Layers: Tensor', function 
     ];
     var dataFormats = ['channelsFirst', 'channelsLast'];
     var globalPoolingLayers = [tfl.layers.globalAveragePooling2d, tfl.layers.globalMaxPooling2d];
-    var _loop_26 = function (globalPoolingLayer) {
-        var _loop_27 = function (dataFormat) {
+    var _loop_27 = function (globalPoolingLayer) {
+        var _loop_28 = function (dataFormat) {
             var testTitle = "globalPoolingLayer=" + globalPoolingLayer.name + ", " + dataFormat;
             it(testTitle, function () {
                 var x = tfjs_core_1.tensor4d(x4DimData, [2, 2, 2, 2]);
@@ -518,12 +546,12 @@ test_utils_1.describeMathCPUAndGPU('2D Global Pooling Layers: Tensor', function 
         };
         for (var _i = 0, dataFormats_4 = dataFormats; _i < dataFormats_4.length; _i++) {
             var dataFormat = dataFormats_4[_i];
-            _loop_27(dataFormat);
+            _loop_28(dataFormat);
         }
     };
     for (var _i = 0, globalPoolingLayers_4 = globalPoolingLayers; _i < globalPoolingLayers_4.length; _i++) {
         var globalPoolingLayer = globalPoolingLayers_4[_i];
-        _loop_26(globalPoolingLayer);
+        _loop_27(globalPoolingLayer);
     }
 });
 //# sourceMappingURL=pooling_test.js.map

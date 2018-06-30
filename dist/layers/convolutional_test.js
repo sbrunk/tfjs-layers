@@ -297,6 +297,22 @@ test_utils_1.describeMathCPU('Conv2D Layers: Symbolic', function () {
         var filters = filtersArray_1[_i];
         _loop_9(filters);
     }
+    it('missing config.kernelSize throws exception', function () {
+        expect(function (filters) { return tfl.layers.conv2d({ filters: 1 }); })
+            .toThrowError(/kernelSize/);
+    });
+    it('bad config.kernelSize shape throws exception', function () {
+        expect(function () { return tfl.layers.conv2d({ filters: 1, kernelSize: [1, 1, 1] }); })
+            .toThrowError(/kernelSize to be number or number\[\] with length 1 or 2/);
+    });
+    it('missing config.filters throws exception', function () {
+        expect(function () { return tfl.layers.conv2d({ kernelSize: 1 }); })
+            .toThrowError(/filters to be a 'number' > 0/);
+    });
+    it('bad config.filters value throws exception', function () {
+        expect(function () { return tfl.layers.conv2d({ kernelSize: 1, filters: 0 }); })
+            .toThrowError(/filters to be a 'number' > 0/);
+    });
 });
 test_utils_1.describeMathCPUAndGPU('Conv2D Layer: Tensor', function () {
     var x4by4Data = [[[
@@ -594,6 +610,10 @@ test_utils_1.describeMathCPU('Conv1D Layers: Symbolic', function () {
         var filters = filtersArray_3[_i];
         _loop_24(filters);
     }
+    it('bad config.kernelSize shape throws exception', function () {
+        expect(function () { return tfl.layers.conv1d({ filters: 1, kernelSize: [1, 1] }); })
+            .toThrowError(/kernelSize.*1/);
+    });
 });
 test_utils_1.describeMathCPUAndGPU('Conv1D Layer: Tensor', function () {
     var xLength4Data = [10, -30, -50, 70];
@@ -667,6 +687,22 @@ test_utils_1.describeMathCPUAndGPU('Conv1D Layer: Tensor', function () {
         var dilationRate = dilationRates_1[_a];
         _loop_29(dilationRate);
     }
+    it('missing config.kernelSize throws exception', function () {
+        expect(function (filters) { return tfl.layers.conv1d({ filters: 1 }); })
+            .toThrowError(/required key 'kernelSize' not in config/);
+    });
+    it('bad config.kernelSize throws exception', function () {
+        expect(function () { return tfl.layers.conv1d({ filters: 1, kernelSize: [1, 1, 1] }); })
+            .toThrowError(/kernelSize to be number or number\[\] with length 1/);
+    });
+    it('missing config.filters throws exception', function () {
+        expect(function () { return tfl.layers.conv1d({ kernelSize: 1 }); })
+            .toThrowError(/filters to be a 'number' > 0/);
+    });
+    it('bad config.filters throws exception', function () {
+        expect(function () { return tfl.layers.conv1d({ kernelSize: 1, filters: 0 }); })
+            .toThrowError(/filters to be a 'number' > 0/);
+    });
 });
 test_utils_1.describeMathCPU('SeparableConv2D Layers: Symbolic', function () {
     var filtersArray = [1, 8];
@@ -894,6 +930,22 @@ test_utils_1.describeMathGPU('SeparableConv2D Layer: Tensor', function () {
         var dataFormat = dataFormats_7[_i];
         _loop_36(dataFormat);
     }
+    it('missing config.kernelSize throws exception', function () {
+        expect(function (filters) { return tfl.layers.separableConv2d({ filters: 1 }); })
+            .toThrowError(/kernelSize/);
+    });
+    it('bad config.kernelSize throws exception', function () {
+        expect(function () { return tfl.layers.separableConv2d({ filters: 1, kernelSize: [1, 1, 1] }); })
+            .toThrowError(/kernelSize/);
+    });
+    it('missing config.filters throws exception', function () {
+        expect(function () { return tfl.layers.separableConv2d({ kernelSize: 1 }); })
+            .toThrowError(/filters/);
+    });
+    it('bad config.filters throws exception', function () {
+        expect(function () { return tfl.layers.separableConv2d({ kernelSize: 1, filters: 0 }); })
+            .toThrowError(/filters/);
+    });
 });
 describe('Cropping2D Layer', function () {
     it('check with undefined channels type', function () {
@@ -924,6 +976,92 @@ describe('Cropping2D Layer', function () {
         var y = tfjs_core_1.tensor4d([
             [[[4]]],
         ], [1, 1, 1, 1]);
+        test_utils_1.expectTensorsClose(layer.apply(x, null), y);
+    });
+});
+test_utils_1.describeMathCPU('UpSampling2D Layer: Symbolic', function () {
+    var dataFormats = ['channelsFirst', 'channelsLast'];
+    var sizes = [undefined, [2, 2]];
+    var _loop_41 = function (dataFormat) {
+        var _loop_42 = function (size) {
+            var testTitle = "size=" + size + ", " + dataFormat;
+            it(testTitle, function () {
+                var inputShape = dataFormat === 'channelsFirst' ? [2, 16, 11, 9] : [2, 11, 9, 16];
+                var symbolicInput = new tfl.SymbolicTensor('float32', inputShape, null, [], null);
+                var upSampling2dLayer = tfl.layers.upSampling2d({
+                    size: size,
+                    dataFormat: dataFormat,
+                });
+                var output = upSampling2dLayer.apply(symbolicInput);
+                var outputRows;
+                var outputCols;
+                if (size === undefined) {
+                    outputRows = 2;
+                    outputCols = 2;
+                }
+                else {
+                    outputRows = size[0];
+                    outputCols = size[1];
+                }
+                var expectedShape;
+                if (dataFormat === 'channelsFirst') {
+                    outputRows *= inputShape[2];
+                    outputCols *= inputShape[3];
+                    expectedShape = [2, 16, outputRows, outputCols];
+                }
+                else {
+                    outputRows *= inputShape[1];
+                    outputCols *= inputShape[2];
+                    expectedShape = [2, outputRows, outputCols, 16];
+                }
+                expect(output.shape).toEqual(expectedShape);
+            });
+        };
+        for (var _i = 0, sizes_1 = sizes; _i < sizes_1.length; _i++) {
+            var size = sizes_1[_i];
+            _loop_42(size);
+        }
+    };
+    for (var _i = 0, dataFormats_8 = dataFormats; _i < dataFormats_8.length; _i++) {
+        var dataFormat = dataFormats_8[_i];
+        _loop_41(dataFormat);
+    }
+});
+describe('UpSampling2D Layer', function () {
+    it('check with default values', function () {
+        var layer = tfl.layers.upSampling2d({});
+        var x = tfjs_core_1.tensor4d([
+            [[[1], [2]], [[3], [4]]],
+        ], [1, 2, 2, 1]);
+        var y = tfjs_core_1.tensor4d([
+            [
+                [[1], [1], [2], [2]], [[1], [1], [2], [2]], [[3], [3], [4], [4]],
+                [[3], [3], [4], [4]]
+            ],
+        ], [1, 4, 4, 1]);
+        test_utils_1.expectTensorsClose(layer.apply(x, null), y);
+    });
+    it('check with channels last', function () {
+        var layer = tfl.layers.upSampling2d({ size: [2, 2], dataFormat: 'channelsLast' });
+        var x = tfjs_core_1.tensor4d([
+            [[[1], [2]], [[3], [4]]],
+        ], [1, 2, 2, 1]);
+        var y = tfjs_core_1.tensor4d([
+            [
+                [[1], [1], [2], [2]], [[1], [1], [2], [2]], [[3], [3], [4], [4]],
+                [[3], [3], [4], [4]]
+            ],
+        ], [1, 4, 4, 1]);
+        test_utils_1.expectTensorsClose(layer.apply(x, null), y);
+    });
+    it('check with channels first', function () {
+        var layer = tfl.layers.upSampling2d({ size: [2, 2], dataFormat: 'channelsFirst' });
+        var x = tfjs_core_1.tensor4d([
+            [[[1, 2], [3, 4]]],
+        ], [1, 1, 2, 2]);
+        var y = tfjs_core_1.tensor4d([
+            [[[1, 1, 2, 2], [1, 1, 2, 2], [3, 3, 4, 4], [3, 3, 4, 4]]],
+        ], [1, 1, 4, 4]);
         test_utils_1.expectTensorsClose(layer.apply(x, null), y);
     });
 });

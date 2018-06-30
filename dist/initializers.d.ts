@@ -135,8 +135,9 @@ export declare class Orthogonal extends Initializer {
     getConfig(): serialization.ConfigDict;
 }
 export declare type InitializerIdentifier = 'constant' | 'glorotNormal' | 'glorotUniform' | 'heNormal' | 'identity' | 'leCunNormal' | 'ones' | 'orthogonal' | 'randomNormal' | 'randomUniform' | 'truncatedNormal' | 'varianceScaling' | 'zeros' | string;
-// export declare const INITIALIZER_IDENTIFIER_REGISTRY_SYMBOL_MAP: {
-//     [identifier in InitializerIdentifier]: string;
-// };
+export declare const INITIALIZER_IDENTIFIER_REGISTRY_SYMBOL_MAP: {
+    //[identifier in InitializerIdentifier]: string;
+    string: string;
+};
 export declare function serializeInitializer(initializer: Initializer): serialization.ConfigDictValue;
 export declare function getInitializer(identifier: InitializerIdentifier | Initializer | serialization.ConfigDict): Initializer;

@@ -1,4 +1,5 @@
-import { io, Optimizer, Scalar, Tensor, Tensor1D } from '@tensorflow/tfjs-core';
+import * as tfc from '@tensorflow/tfjs-core';
+import { io, ModelPredictConfig, Optimizer, Scalar, Tensor, Tensor1D } from '@tensorflow/tfjs-core';
 import { Callback, CustomCallbackConfig, History } from '../callbacks';
 import { LossOrMetricFn, NamedTensorMap, Shape } from '../types';
 import { Container, ContainerConfig } from './topology';
@@ -22,10 +23,6 @@ export declare function sliceArraysByIndices(arrays: Tensor | Tensor[], indices:
 export declare enum ModelLoggingVerbosity {
     SILENT = 0,
     VERBOSE = 1,
-}
-export interface ModelPredictConfig {
-    batchSize?: number;
-    verbose?: boolean;
 }
 export interface ModelEvaluateConfig {
     batchSize?: number;
@@ -60,7 +57,7 @@ export interface ModelCompileConfig {
         [outputName: string]: string;
     };
 }
-export declare class Model extends Container {
+export declare class Model extends Container implements tfc.InferenceModel {
     static className: string;
     optimizer: Optimizer;
     loss: string | string[] | {
@@ -74,16 +71,20 @@ export declare class Model extends Container {
     private collectedTrainableWeights;
     private testFunction;
     history: History;
+    stopTraining: boolean;
     metrics: string[] | {
         [outputName: string]: string;
     };
     metricsNames: string[];
     metricsTensors: Array<[LossOrMetricFn, number]>;
     constructor(config: ContainerConfig);
+    summary(lineLength?: number, positions?: number[], printFn?: (message?: any, ...optionalParams: any[]) => void): void;
     compile(config: ModelCompileConfig): void;
     private checkTrainableWeightsConsistency();
     evaluate(x: Tensor | Tensor[], y: Tensor | Tensor[], config?: ModelEvaluateConfig): Scalar | Scalar[];
     private checkNumSamples(ins, batchSize?, steps?, stepsName?);
+    execute(inputs: Tensor | Tensor[] | NamedTensorMap, outputs: string | string[]): Tensor | Tensor[];
+    private retrieveSymbolicTensors(symbolicTensorNames);
     private predictLoop(ins, batchSize?, verbose?);
     predict(x: Tensor | Tensor[], config?: ModelPredictConfig): Tensor | Tensor[];
     predictOnBatch(x: Tensor): Tensor | Tensor[];

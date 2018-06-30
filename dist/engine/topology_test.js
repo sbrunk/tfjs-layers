@@ -587,6 +587,53 @@ test_utils_1.describeMathCPU('Layer', function () {
             expect(firstLayer.outboundNodes[0].outboundLayer).toEqual(secondLayer);
         });
     });
+    describe('Layer.outputShape', function () {
+        it('Layers with one output', function () {
+            var layer = tfl.layers.dense({ units: 3 });
+            layer.apply(new tfl.SymbolicTensor('float32', [null, 4], null, [], {}));
+            expect(layer.outputShape).toEqual([null, 3]);
+        });
+        it('Layers with two outputs', function () {
+            var layer = tfl.layers.simpleRNN({ units: 3, returnState: true });
+            layer.apply(new tfl.SymbolicTensor('float32', [null, 4, 5], null, [], {}));
+            expect(layer.outputShape).toEqual([[null, 3], [null, 3]]);
+        });
+        it('Layers with two inboundNodes of the same outputShape', function () {
+            var layer = tfl.layers.dense({ units: 3 });
+            layer.apply(new tfl.SymbolicTensor('float32', [null, 4], null, [], {}));
+            layer.apply(new tfl.SymbolicTensor('float32', [null, 4], null, [], {}));
+            expect(layer.inboundNodes.length).toEqual(2);
+            expect(layer.outputShape).toEqual([null, 3]);
+        });
+        it('Layers with two inboundNodes of different outputShapes', function () {
+            var layer = tfl.layers.dense({ units: 3 });
+            layer.apply(new tfl.SymbolicTensor('float32', [null, 5, 4], null, [], {}));
+            layer.apply(new tfl.SymbolicTensor('float32', [null, 6, 4], null, [], {}));
+            expect(layer.inboundNodes.length).toEqual(2);
+            expect(function () { return layer.outputShape; })
+                .toThrowError(/has multiple inbound nodes/);
+        });
+        it('Unbuilt layer throws Error', function () {
+            var layer = tfl.layers.dense({ units: 3 });
+            expect(function () { return layer.outputShape; }).toThrowError(/has never been called/);
+        });
+    });
+    describe('Layer.countParams', function () {
+        it('Layers with weights', function () {
+            var units = 3;
+            var inputSize = 4;
+            var layer = tfl.layers.dense({ units: units });
+            layer.apply(tfjs_core_1.zeros([1, inputSize]));
+            var numParams = layer.countParams();
+            expect(numParams).toEqual(units * inputSize + units);
+        });
+        it('Layer without weights', function () {
+            var layer = tfl.layers.flatten();
+            layer.apply(tfjs_core_1.zeros([2, 2, 2]));
+            var numParams = layer.countParams();
+            expect(numParams).toEqual(0);
+        });
+    });
     describe('setWeights', function () {
         it('throws exception if weights are not the same length ' +
             'as existing weights', function () {

@@ -3,10 +3,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var tfc = require("@tensorflow/tfjs-core");
 var tfjs_core_1 = require("@tensorflow/tfjs-core");
 var types_1 = require("../types");
-var variables_1 = require("../variables");
 var generic_utils_1 = require("../utils/generic_utils");
 var math_utils_1 = require("../utils/math_utils");
 var test_utils_1 = require("../utils/test_utils");
+var variables_1 = require("../variables");
 var K = require("./tfjs_backend");
 describe('TensorMath', function () {
     it('Setting and getting backend', function () {
@@ -58,28 +58,6 @@ describe('intShape', function () {
     it('Tensor4D', function () {
         var x = tfjs_core_1.zeros([4, 3, 2, 1]);
         expect(K.intShape(x)).toEqual([4, 3, 2, 1]);
-    });
-});
-describe('ndim', function () {
-    it('Scalar', function () {
-        var x = tfjs_core_1.zeros([]);
-        expect(K.ndim(x)).toEqual(0);
-    });
-    it('Tensor1D', function () {
-        var x = tfjs_core_1.zeros([3]);
-        expect(K.ndim(x)).toEqual(1);
-    });
-    it('Tensor2D', function () {
-        var x = tfjs_core_1.zeros([3, 2]);
-        expect(K.ndim(x)).toEqual(2);
-    });
-    it('Tensor3D', function () {
-        var x = tfjs_core_1.zeros([4, 3, 2]);
-        expect(K.ndim(x)).toEqual(3);
-    });
-    it('Tensor4D', function () {
-        var x = tfjs_core_1.zeros([4, 3, 2, 1]);
-        expect(K.ndim(x)).toEqual(4);
     });
 });
 describe('dtype', function () {
@@ -346,64 +324,6 @@ test_utils_1.describeMathCPUAndGPU('sliceAlongAxis', function () {
         var array4DData = [[[[10, 1]]], [[[20, 2]]], [[[30, 3]]], [[[40, 4]]]];
         var x = tfjs_core_1.tensor4d(array4DData, [4, 1, 1, 2]);
         test_utils_1.expectTensorsClose(K.sliceAlongAxis(x, 0, 1, 4), tfjs_core_1.tensor4d([[[[10]]], [[[20]]], [[[30]]], [[[40]]]], [4, 1, 1, 1]));
-    });
-});
-test_utils_1.describeMathCPUAndGPU('normalizeBatchInTraining', function () {
-    it('2D, no broadcasting', function () {
-        var x = tfjs_core_1.tensor2d([[1, 2, 3, 4], [2, 4, 6, 8], [12, 11, 10, 9]], [3, 4]);
-        var gamma = tfjs_core_1.tensor1d([1, 1, 1, 1]);
-        var beta = tfjs_core_1.tensor1d([0, 0, 0, 0]);
-        var reductionAxes = [0];
-        var _a = K.normalizeBatchInTraining(x, gamma, beta, reductionAxes), normed = _a[0], mean = _a[1], variance = _a[2];
-        test_utils_1.expectTensorsClose(normed, tfjs_core_1.tensor2d([
-            [-0.805371, -0.9502233, -1.1624058, -1.3885813],
-            [-0.6040282, -0.4319197, -0.11624074, 0.46286058],
-            [1.4093992, 1.3821429, 1.2786462, 0.92572117]
-        ], [3, 4]));
-        test_utils_1.expectTensorsClose(mean, tfjs_core_1.tensor1d([5.0, 5.6666665, 6.3333335, 7.0]));
-        test_utils_1.expectTensorsClose(variance, tfjs_core_1.tensor1d([24.666666, 14.888889, 8.222222, 4.6666665]));
-    });
-    it('3D, no broadcasting', function () {
-        var x = tfjs_core_1.tensor3d([[[1, 2], [3, 4]], [[2, 4], [6, 8]], [[12, 11], [10, 9]]], [3, 2, 2]);
-        var gamma = tfjs_core_1.tensor1d([1, 1]);
-        var beta = tfjs_core_1.tensor1d([0, 0]);
-        var reductionAxes = [0, 1];
-        var _a = K.normalizeBatchInTraining(x, gamma, beta, reductionAxes), normed = _a[0], mean = _a[1], variance = _a[2];
-        test_utils_1.expectTensorsClose(normed, tfjs_core_1.tensor3d([
-            [[-1.1355163, -1.3552775], [-0.6488664, -0.7297648]],
-            [[-0.8921913, -0.7297648], [0.08110833, 0.5212605]],
-            [[1.5410578, 1.4595294], [1.0544081, 0.8340168]]
-        ], [3, 2, 2]));
-        test_utils_1.expectTensorsClose(mean, tfjs_core_1.tensor1d([5.6666665, 6.3333335]));
-        test_utils_1.expectTensorsClose(variance, tfjs_core_1.tensor1d([16.88889, 10.222222]));
-    });
-    it('3D, broadcasting', function () {
-        var x = tfjs_core_1.tensor3d([[[1, 2], [3, 4]], [[2, 4], [6, 8]], [[12, 11], [10, 9]]], [3, 2, 2]);
-        var gamma = tfjs_core_1.tensor2d([[1, 1], [1, 1]], [2, 2]);
-        var beta = tfjs_core_1.tensor2d([[0, 0], [0, 0]], [2, 2]);
-        var reductionAxes = [0];
-        var _a = K.normalizeBatchInTraining(x, gamma, beta, reductionAxes), normed = _a[0], mean = _a[1], variance = _a[2];
-        test_utils_1.expectTensorsClose(normed, tfjs_core_1.tensor3d([
-            [[-0.805371, -0.9502233], [-1.1624058, -1.3885813]],
-            [[-0.6040282, -0.4319197], [-0.11624074, 0.46286058]],
-            [[1.4093992, 1.3821429], [1.2786462, 0.92572117]]
-        ], [3, 2, 2]));
-        test_utils_1.expectTensorsClose(mean, tfjs_core_1.tensor2d([[5, 5.6666665], [6.3333335, 7]], [2, 2]));
-        test_utils_1.expectTensorsClose(variance, tfjs_core_1.tensor2d([[24.666666, 14.888889], [8.222222, 4.6666665]], [2, 2]));
-    });
-    it('4D, broadcasting', function () {
-        var x = tfjs_core_1.tensor4d([[[[1, 2], [3, 4]], [[2, 4], [6, 8]], [[12, 11], [10, 9]]]], [1, 3, 2, 2]);
-        var gamma = tfjs_core_1.tensor2d([[1, 1], [1, 1]], [2, 2]);
-        var beta = tfjs_core_1.tensor2d([[0, 0], [0, 0]], [2, 2]);
-        var reductionAxes = [0, 1];
-        var _a = K.normalizeBatchInTraining(x, gamma, beta, reductionAxes), normed = _a[0], mean = _a[1], variance = _a[2];
-        test_utils_1.expectTensorsClose(normed, tfjs_core_1.tensor4d([[
-                [[-0.805371, -0.9502233], [-1.1624058, -1.3885813]],
-                [[-0.6040282, -0.4319197], [-0.11624074, 0.46286058]],
-                [[1.4093992, 1.3821429], [1.2786462, 0.92572117]]
-            ]], [1, 3, 2, 2]));
-        test_utils_1.expectTensorsClose(mean, tfjs_core_1.tensor2d([[5, 5.6666665], [6.3333335, 7]], [2, 2]));
-        test_utils_1.expectTensorsClose(variance, tfjs_core_1.tensor2d([[24.666666, 14.888889], [8.222222, 4.6666665]], [2, 2]));
     });
 });
 test_utils_1.describeMathCPUAndGPU('concatenate', function () {
@@ -739,117 +659,6 @@ test_utils_1.describeMathCPUAndGPU('softsign', function () {
         test_utils_1.expectTensorsClose(tfc.tanh(tfjs_core_1.tensor2d([[-2, -1], [1, 2]], [2, 2])), tfjs_core_1.tensor2d([Math.tanh(-2), Math.tanh(-1), Math.tanh(1), Math.tanh(2)], [2, 2]));
     });
 });
-test_utils_1.describeMathCPUAndGPU('batchNormalization', function () {
-    it('2D, no broadcast, no gamma, no beta', function () {
-        var x = tfjs_core_1.tensor2d([[10, 20], [30, 40]], [2, 2]);
-        var mean = tfjs_core_1.tensor2d([[5, 5], [5, 5]], [2, 2]);
-        var variance = tfjs_core_1.tensor2d([[4, 16], [4, 16]], [2, 2]);
-        test_utils_1.expectTensorsClose(K.batchNormalization(x, mean, variance, null, null, 0), tfjs_core_1.tensor2d([[2.5, 3.75], [12.5, 8.75]], [2, 2]));
-    });
-    it('2D, no broadcast, no gamma, no beta, custom epsilon', function () {
-        var x = tfjs_core_1.tensor2d([[30, 30], [60, 60]], [2, 2]);
-        var mean = tfjs_core_1.tensor2d([[0, 0], [0, 0]], [2, 2]);
-        var variance = tfjs_core_1.tensor2d([[7, 7], [7, 7]], [2, 2]);
-        test_utils_1.expectTensorsClose(K.batchNormalization(x, mean, variance, null, null, 2), tfjs_core_1.tensor2d([[10, 10], [20, 20]], [2, 2]));
-    });
-    it('2D, no broadcast, gamma, no beta', function () {
-        var x = tfjs_core_1.tensor2d([[10, 20], [30, 40]], [2, 2]);
-        var mean = tfjs_core_1.tensor2d([[5, 5], [5, 5]], [2, 2]);
-        var variance = tfjs_core_1.tensor2d([[4, 16], [4, 16]], [2, 2]);
-        var gamma = tfjs_core_1.tensor2d([[1, 2], [3, 4]], [2, 2]);
-        test_utils_1.expectTensorsClose(K.batchNormalization(x, mean, variance, null, gamma, 0), tfjs_core_1.tensor2d([[2.5, 7.5], [37.5, 35]], [2, 2]));
-    });
-    it('2D, no broadcast, gamma, beta', function () {
-        var x = tfjs_core_1.tensor2d([[10, 20], [30, 40]], [2, 2]);
-        var mean = tfjs_core_1.tensor2d([[5, 5], [5, 5]], [2, 2]);
-        var variance = tfjs_core_1.tensor2d([[4, 16], [4, 16]], [2, 2]);
-        var gamma = tfjs_core_1.tensor2d([[1, 2], [3, 4]], [2, 2]);
-        var beta = tfjs_core_1.tensor2d([[-1, -1], [-2, -2]], [2, 2]);
-        test_utils_1.expectTensorsClose(K.batchNormalization(x, mean, variance, beta, gamma, 0), tfjs_core_1.tensor2d([[1.5, 6.5], [35.5, 33]], [2, 2]));
-    });
-    it('2D, broadcast, gamma, beta', function () {
-        var x = tfjs_core_1.tensor2d([[10, 20], [30, 40]], [2, 2]);
-        var mean = tfjs_core_1.tensor1d([2, 5]);
-        var variance = tfjs_core_1.tensor1d([1, 4]);
-        var gamma = tfjs_core_1.tensor1d([3, 4]);
-        var beta = tfjs_core_1.tensor1d([-1, -2]);
-        test_utils_1.expectTensorsClose(K.batchNormalization(x, mean, variance, beta, gamma, 0), tfjs_core_1.tensor2d([[23, 28], [83, 68]], [2, 2]));
-    });
-    it('3D, no broadcast, no gamma, no beta', function () {
-        var x = tfjs_core_1.tensor3d([[[10, 20], [30, 40]], [[10, 20], [30, 40]]], [2, 2, 2]);
-        var mean = tfjs_core_1.tensor3d([[[5, 5], [5, 5]], [[5, 5], [5, 5]]], [2, 2, 2]);
-        var variance = tfjs_core_1.tensor3d([[[4, 16], [4, 16]], [[16, 25], [16, 25]]], [2, 2, 2]);
-        test_utils_1.expectTensorsClose(K.batchNormalization(x, mean, variance, null, null, 0), tfjs_core_1.tensor3d([[[2.5, 3.75], [12.5, 8.75]], [[1.25, 3], [6.25, 7]]], [2, 2, 2]));
-    });
-    it('3D, no broadcast, gamma, beta', function () {
-        var x = tfjs_core_1.tensor3d([[[10, 20], [30, 40]], [[10, 20], [30, 40]]], [2, 2, 2]);
-        var mean = tfjs_core_1.tensor3d([[[5, 5], [5, 5]], [[5, 5], [5, 5]]], [2, 2, 2]);
-        var variance = tfjs_core_1.tensor3d([[[4, 16], [4, 16]], [[16, 25], [16, 25]]], [2, 2, 2]);
-        var gamma = tfjs_core_1.tensor3d([[[2, 2], [2, 2]], [[4, 4], [4, 4]]], [2, 2, 2]);
-        var beta = tfjs_core_1.tensor3d([[[-1, -1], [-2, -2]], [[-1, -1], [-2, -2]]], [2, 2, 2]);
-        test_utils_1.expectTensorsClose(K.batchNormalization(x, mean, variance, beta, gamma, 0), tfjs_core_1.tensor3d([[[4, 6.5], [23, 15.5]], [[4, 11], [23, 26]]], [2, 2, 2]));
-    });
-    it('3D, broadcast, gamma, beta', function () {
-        var x = tfjs_core_1.tensor3d([[[10, 20], [30, 40]], [[10, 20], [30, 40]]], [2, 2, 2]);
-        var mean = tfjs_core_1.tensor1d([5, 5]);
-        var variance = tfjs_core_1.tensor1d([4, 16]);
-        var gamma = tfjs_core_1.tensor1d([2, 4]);
-        var beta = tfjs_core_1.tensor1d([-1, -2]);
-        test_utils_1.expectTensorsClose(K.batchNormalization(x, mean, variance, beta, gamma, 0), tfjs_core_1.tensor3d([[[4, 13], [24, 33]], [[4, 13], [24, 33]]], [2, 2, 2]));
-    });
-    it('4D, no broadcast, no gamma, no beta', function () {
-        var x = tfjs_core_1.tensor4d([
-            [[[10, 20], [30, 40]], [[10, 20], [30, 40]]],
-            [[[-10, -20], [-30, -40]], [[-10, -20], [-30, -40]]]
-        ], [2, 2, 2, 2]);
-        var mean = tfjs_core_1.tensor4d([
-            [[[5, 5], [5, 5]], [[5, 5], [5, 5]]],
-            [[[-5, -5], [-5, -5]], [[-5, -5], [-5, -5]]]
-        ], [2, 2, 2, 2]);
-        var variance = tfjs_core_1.tensor4d([
-            [[[4, 16], [4, 16]], [[16, 25], [16, 25]]],
-            [[[4, 16], [4, 16]], [[16, 25], [16, 25]]]
-        ], [2, 2, 2, 2]);
-        test_utils_1.expectTensorsClose(K.batchNormalization(x, mean, variance, null, null, 0), tfjs_core_1.tensor4d([
-            [[[2.5, 3.75], [12.5, 8.75]], [[1.25, 3], [6.25, 7]]],
-            [[[-2.5, -3.75], [-12.5, -8.75]], [[-1.25, -3], [-6.25, -7]]]
-        ], [2, 2, 2, 2]));
-    });
-    it('4D, no broadcast, gamma, beta', function () {
-        var x = tfjs_core_1.tensor4d([
-            [[[10, 20], [30, 40]], [[10, 20], [30, 40]]],
-            [[[-10, -20], [-30, -40]], [[-10, -20], [-30, -40]]]
-        ], [2, 2, 2, 2]);
-        var mean = tfjs_core_1.tensor4d([
-            [[[5, 5], [5, 5]], [[5, 5], [5, 5]]],
-            [[[-5, -5], [-5, -5]], [[-5, -5], [-5, -5]]]
-        ], [2, 2, 2, 2]);
-        var variance = tfjs_core_1.tensor4d([
-            [[[4, 16], [4, 16]], [[16, 25], [16, 25]]],
-            [[[4, 16], [4, 16]], [[16, 25], [16, 25]]]
-        ], [2, 2, 2, 2]);
-        var gamma = tfjs_core_1.tensor4d([
-            [[[2, 2], [2, 2]], [[4, 4], [4, 4]]],
-            [[[2, 2], [2, 2]], [[4, 4], [4, 4]]]
-        ], [2, 2, 2, 2]);
-        var beta = tfjs_core_1.tensor4d([
-            [[[-1, -1], [-2, -2]], [[-1, -1], [-2, -2]]],
-            [[[1, 1], [2, 2]], [[1, 1], [2, 2]]]
-        ], [2, 2, 2, 2]);
-        test_utils_1.expectTensorsClose(K.batchNormalization(x, mean, variance, beta, gamma, 0), tfjs_core_1.tensor4d([
-            [[[4, 6.5], [23, 15.5]], [[4, 11], [23, 26]]],
-            [[[-4, -6.5], [-23, -15.5]], [[-4, -11], [-23, -26]]]
-        ], [2, 2, 2, 2]));
-    });
-    it('4D, broadcast, gamma, beta', function () {
-        var x = tfjs_core_1.tensor4d([[[[10, 20], [30, 40]]], [[[10, 20], [30, 40]]]], [2, 1, 2, 2]);
-        var mean = tfjs_core_1.tensor1d([5, 5]);
-        var variance = tfjs_core_1.tensor1d([4, 16]);
-        var gamma = tfjs_core_1.tensor1d([2, 4]);
-        var beta = tfjs_core_1.tensor1d([-1, -2]);
-        test_utils_1.expectTensorsClose(K.batchNormalization(x, mean, variance, beta, gamma, 0), tfjs_core_1.tensor4d([[[[4, 13], [24, 33]]], [[[4, 13], [24, 33]]]], [2, 1, 2, 2]));
-    });
-});
 test_utils_1.describeMathCPUAndGPU('dropout', function () {
     var dropoutLevels = [0, 0.75];
     var _loop_2 = function (dropoutLevel) {
@@ -880,28 +689,6 @@ test_utils_1.describeMathCPUAndGPU('dropout', function () {
         var dropoutLevel = dropoutLevels_1[_i];
         _loop_2(dropoutLevel);
     }
-});
-test_utils_1.describeMathCPUAndGPU('l2Normalize', function () {
-    it('normalizes with no axis defined.', function () {
-        var x = tfjs_core_1.tensor2d([[1, 2], [3, 4]], [2, 2]);
-        var norm = Math.sqrt(1 * 1 + 2 * 2 + 3 * 3 + 4 * 4);
-        var expected = tfjs_core_1.tensor2d([[1 / norm, 2 / norm], [3 / norm, 4 / norm]], [2, 2]);
-        var result = K.l2Normalize(x);
-        test_utils_1.expectTensorsClose(result, expected);
-    });
-    it('normalizes along axis = -1.', function () {
-        var x = tfjs_core_1.tensor2d([[1, 2], [3, 4]], [2, 2]);
-        var firstNorm = Math.sqrt(1 * 1 + 2 * 2);
-        var secondNorm = Math.sqrt(3 * 3 + 4 * 4);
-        var expected = tfjs_core_1.tensor2d([[1 / firstNorm, 2 / firstNorm], [3 / secondNorm, 4 / secondNorm]], [2, 2]);
-        var result = K.l2Normalize(x, -1);
-        test_utils_1.expectTensorsClose(result, expected);
-    });
-    it('normalizes with zeros.', function () {
-        var x = tfjs_core_1.zeros([2, 2]);
-        var result = K.l2Normalize(x);
-        test_utils_1.expectTensorsClose(result, x);
-    });
 });
 test_utils_1.describeMathCPUAndGPU('biasAdd', function () {
     it('1D + 1D', function () {
@@ -985,85 +772,6 @@ describe('getUID ', function () {
         var firstUID = K.getUid();
         var secondUID = K.getUid();
         expect(firstUID).not.toEqual(secondUID);
-    });
-});
-test_utils_1.describeMathCPUAndGPU('categoricalCrossentropy ', function () {
-    it('from logits', function () {
-        var x = tfjs_core_1.tensor2d([[1, 2], [3, 4]], [2, 2]);
-        var target = tfjs_core_1.tensor2d([[0.25, 0.75], [0.1, 0.9]], [2, 2]);
-        var expected = tfjs_core_1.tensor1d([
-            -1 *
-                (Math.log(Math.exp(1) / (Math.exp(1) + Math.exp(2))) * 0.25 +
-                    Math.log(Math.exp(2) / (Math.exp(1) + Math.exp(2))) * 0.75),
-            -1 *
-                (Math.log(Math.exp(3) / (Math.exp(3) + Math.exp(4))) * 0.1 +
-                    Math.log(Math.exp(4) / (Math.exp(3) + Math.exp(4))) * 0.9)
-        ]);
-        var result = K.categoricalCrossentropy(target, x, true);
-        test_utils_1.expectTensorsClose(result, expected);
-    });
-    it('from softmax', function () {
-        var x = tfjs_core_1.tensor2d([[0.3, 0.7], [0.4, 0.6]], [2, 2]);
-        var target = tfjs_core_1.tensor2d([[0.25, 0.75], [0.1, 0.9]], [2, 2]);
-        var expected = tfjs_core_1.tensor1d([
-            -1 * (Math.log(0.3) * 0.25 + Math.log(0.7) * 0.75),
-            -1 * (Math.log(0.4) * 0.1 + Math.log(0.6) * 0.9)
-        ]);
-        var result = K.categoricalCrossentropy(target, x, false);
-        test_utils_1.expectTensorsClose(result, expected);
-    });
-});
-test_utils_1.describeMathCPUAndGPU('sparseCategoricalCrossentropy ', function () {
-    it('from logits', function () {
-        var x = tfjs_core_1.tensor2d([[1, 2, 3], [4, 5, 6]], [2, 3]);
-        var target = tfjs_core_1.tensor1d([0, 2]);
-        var expected = tfjs_core_1.tensor1d([
-            -1 * Math.log(Math.exp(1) / (Math.exp(1) + Math.exp(2) + Math.exp(3))),
-            -1 * Math.log(Math.exp(6) / (Math.exp(4) + Math.exp(5) + Math.exp(6)))
-        ]);
-        var result = K.sparseCategoricalCrossentropy(target, x, true);
-        test_utils_1.expectTensorsClose(result, expected);
-    });
-    it('from softmax', function () {
-        var x = tfjs_core_1.tensor2d([[0.1, 0.2, 0.7], [0.2, 0.3, 0.5]], [2, 3]);
-        var target = tfjs_core_1.tensor1d([0, 2]);
-        var expected = tfjs_core_1.tensor1d([-1 * Math.log(0.1), -1 * Math.log(0.5)]);
-        var result = K.sparseCategoricalCrossentropy(target, x, false);
-        test_utils_1.expectTensorsClose(result, expected);
-    });
-});
-test_utils_1.describeMathCPUAndGPU('binaryCrossentropy', function () {
-    function _binaryCrossentropy(target, output) {
-        var targetComplement = K.scalarPlusArray(tfjs_core_1.scalar(1), tfc.neg(target));
-        var outputComplement = K.scalarPlusArray(tfjs_core_1.scalar(1), tfc.neg(output));
-        return tfc.neg(tfc.add(tfc.mul(target, tfc.log(output)), tfc.mul(targetComplement, tfc.log(outputComplement))));
-    }
-    it('from logits', function () {
-        var x = tfjs_core_1.tensor2d([[1, 2], [3, 4]], [2, 2]);
-        var target = tfjs_core_1.tensor2d([[0.25, 0.75], [0.1, 0.9]], [2, 2]);
-        var sigmoidX = tfc.sigmoid(x);
-        var expected = _binaryCrossentropy(target, sigmoidX);
-        var result = K.binaryCrossentropy(target, x, true);
-        test_utils_1.expectTensorsClose(result, expected);
-    });
-    it('from sigmoid', function () {
-        var x = tfjs_core_1.tensor2d([[0.3, 0.7], [0.4, 0.6]], [2, 2]);
-        var target = tfjs_core_1.tensor2d([[0.25, 0.75], [0.1, 0.9]], [2, 2]);
-        var expected = _binaryCrossentropy(target, x);
-        var result = K.binaryCrossentropy(target, x, false);
-        test_utils_1.expectTensorsClose(result, expected);
-    });
-});
-test_utils_1.describeMathCPUAndGPU('sigmoidCrossEntropyWithLogits', function () {
-    it('outputs sigmoid cross-entropy', function () {
-        var x = tfjs_core_1.tensor2d([[1, 2], [3, 4]], [2, 2]);
-        var target = tfjs_core_1.tensor2d([[0.25, 0.75], [0.1, 0.9]], [2, 2]);
-        var targetComplement = K.scalarPlusArray(tfjs_core_1.scalar(1), tfc.neg(target));
-        var sigmoidX = tfc.sigmoid(x);
-        var sigmoidXComplement = K.scalarPlusArray(tfjs_core_1.scalar(1), tfc.neg(sigmoidX));
-        var expected = tfc.add(tfc.mul(target, tfc.neg(tfc.log(sigmoidX))), tfc.mul(targetComplement, tfc.neg(tfc.log(sigmoidXComplement))));
-        var result = K.sigmoidCrossEntropyWithLogits(target, x);
-        test_utils_1.expectTensorsClose(result, expected);
     });
 });
 test_utils_1.describeMathCPUAndGPU('Sigmoid', function () {

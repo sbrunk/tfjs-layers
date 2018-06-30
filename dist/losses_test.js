@@ -1,19 +1,20 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+var tfc = require("@tensorflow/tfjs-core");
 var tfjs_core_1 = require("@tensorflow/tfjs-core");
 var K = require("./backend/tfjs_backend");
 var losses = require("./losses");
 var test_utils_1 = require("./utils/test_utils");
 test_utils_1.describeMathCPUAndGPU('meanSquaredError', function () {
     it('1D', function () {
-        var yTrue = tfjs_core_1.zeros([3]);
+        var yTrue = tfc.zeros([3]);
         var yPred = tfjs_core_1.tensor1d([1, 2, 3]);
         var expectedVal = tfjs_core_1.scalar((1 * 1 + 2 * 2 + 3 * 3) / 3);
         var result = losses.meanSquaredError(yTrue, yPred);
         test_utils_1.expectTensorsClose(result, expectedVal);
     });
     it('2D', function () {
-        var yTrue = tfjs_core_1.zeros([2, 2]);
+        var yTrue = tfc.zeros([2, 2]);
         var yPred = tfjs_core_1.tensor2d([[1, 2], [3, 4]], [2, 2]);
         var expectedVal = tfjs_core_1.tensor1d([(1 * 1 + 2 * 2) / 2, (3 * 3 + 4 * 4) / 2]);
         var result = losses.meanSquaredError(yTrue, yPred);
@@ -22,14 +23,14 @@ test_utils_1.describeMathCPUAndGPU('meanSquaredError', function () {
 });
 test_utils_1.describeMathCPUAndGPU('meanAbsoluteError', function () {
     it('1D', function () {
-        var yTrue = tfjs_core_1.zeros([3]);
+        var yTrue = tfc.zeros([3]);
         var yPred = tfjs_core_1.tensor1d([-1, -2, -3]);
         var expectedVal = tfjs_core_1.scalar((1 + 2 + 3) / 3);
         var result = losses.meanAbsoluteError(yTrue, yPred);
         test_utils_1.expectTensorsClose(result, expectedVal);
     });
     it('2D', function () {
-        var yTrue = tfjs_core_1.zeros([2, 2]);
+        var yTrue = tfc.zeros([2, 2]);
         var yPred = tfjs_core_1.tensor2d([[-1, -2], [-3, -4]], [2, 2]);
         var expectedVal = tfjs_core_1.tensor1d([(1 + 2) / 2, (3 + 4) / 2]);
         var result = losses.meanAbsoluteError(yTrue, yPred);
@@ -39,14 +40,14 @@ test_utils_1.describeMathCPUAndGPU('meanAbsoluteError', function () {
 test_utils_1.describeMathCPUAndGPU('meanAbsolutePercentageError', function () {
     it('1D', function () {
         var yTrue = tfjs_core_1.tensor1d([-1, -2, -3]);
-        var yPred = tfjs_core_1.zeros([3]);
+        var yPred = tfc.zeros([3]);
         var expectedVal = tfjs_core_1.scalar((1 + 2 + 3) / (1 + 2 + 3) * 100);
         var result = losses.meanAbsolutePercentageError(yTrue, yPred);
         test_utils_1.expectTensorsClose(result, expectedVal);
     });
     it('2D', function () {
         var yTrue = tfjs_core_1.tensor2d([[-1, -2], [-3, -4]], [2, 2]);
-        var yPred = tfjs_core_1.zeros([2, 2]);
+        var yPred = tfc.zeros([2, 2]);
         var expectedVal = tfjs_core_1.tensor1d([(1 + 2) / (1 + 2) * 100, (3 + 4) / (3 + 4) * 100]);
         var result = losses.meanAbsolutePercentageError(yTrue, yPred);
         test_utils_1.expectTensorsClose(result, expectedVal);
@@ -65,7 +66,7 @@ test_utils_1.describeMathCPUAndGPU('meanSquaredLogarithmicError', function () {
         return acc / x.length;
     }
     it('2D', function () {
-        var yTrue = tfjs_core_1.zeros([2, 2]);
+        var yTrue = tfc.zeros([2, 2]);
         var yPred = tfjs_core_1.tensor2d([[1, 2], [3, 4]], [2, 2]);
         var expectedVal = tfjs_core_1.tensor1d([
             meanSquaredLogErrorFor1DArray([1, 2], [0, 0]),
@@ -112,7 +113,7 @@ test_utils_1.describeMathCPUAndGPU('logcosh', function () {
         return x + Math.log(Math.exp(-2 * x) + 1) - Math.log(2);
     }
     it('2D', function () {
-        var yTrue = tfjs_core_1.zeros([2, 2]);
+        var yTrue = tfc.zeros([2, 2]);
         var yPred = tfjs_core_1.tensor2d([[1, 2], [3, 4]], [2, 2]);
         var firstRow = [1, 2].map(_logcosh);
         var secondRow = [3, 4].map(_logcosh);
@@ -123,11 +124,68 @@ test_utils_1.describeMathCPUAndGPU('logcosh', function () {
         test_utils_1.expectTensorsClose(result, expectedVal);
     });
 });
+test_utils_1.describeMathCPUAndGPU('categoricalCrossentropy ', function () {
+    it('from logits', function () {
+        var x = tfjs_core_1.tensor2d([[1, 2], [3, 4]], [2, 2]);
+        var target = tfjs_core_1.tensor2d([[0.25, 0.75], [0.1, 0.9]], [2, 2]);
+        var expected = tfjs_core_1.tensor1d([
+            -1 *
+                (Math.log(Math.exp(1) / (Math.exp(1) + Math.exp(2))) * 0.25 +
+                    Math.log(Math.exp(2) / (Math.exp(1) + Math.exp(2))) * 0.75),
+            -1 *
+                (Math.log(Math.exp(3) / (Math.exp(3) + Math.exp(4))) * 0.1 +
+                    Math.log(Math.exp(4) / (Math.exp(3) + Math.exp(4))) * 0.9)
+        ]);
+        var result = losses.categoricalCrossentropy(target, x, true);
+        test_utils_1.expectTensorsClose(result, expected);
+    });
+    it('from softmax', function () {
+        var x = tfjs_core_1.tensor2d([[0.3, 0.7], [0.4, 0.6]], [2, 2]);
+        var target = tfjs_core_1.tensor2d([[0.25, 0.75], [0.1, 0.9]], [2, 2]);
+        var expected = tfjs_core_1.tensor1d([
+            -1 * (Math.log(0.3) * 0.25 + Math.log(0.7) * 0.75),
+            -1 * (Math.log(0.4) * 0.1 + Math.log(0.6) * 0.9)
+        ]);
+        var result = losses.categoricalCrossentropy(target, x, false);
+        test_utils_1.expectTensorsClose(result, expected);
+    });
+});
+test_utils_1.describeMathCPUAndGPU('sparseCategoricalCrossentropy ', function () {
+    it('from logits', function () {
+        var x = tfjs_core_1.tensor2d([[1, 2, 3], [4, 5, 6]], [2, 3]);
+        var target = tfjs_core_1.tensor1d([0, 2]);
+        var expected = tfjs_core_1.tensor1d([
+            -1 * Math.log(Math.exp(1) / (Math.exp(1) + Math.exp(2) + Math.exp(3))),
+            -1 * Math.log(Math.exp(6) / (Math.exp(4) + Math.exp(5) + Math.exp(6)))
+        ]);
+        var result = losses.sparseCategoricalCrossentropy(target, x, true);
+        test_utils_1.expectTensorsClose(result, expected);
+    });
+    it('from softmax', function () {
+        var x = tfjs_core_1.tensor2d([[0.1, 0.2, 0.7], [0.2, 0.3, 0.5]], [2, 3]);
+        var target = tfjs_core_1.tensor1d([0, 2]);
+        var expected = tfjs_core_1.tensor1d([-1 * Math.log(0.1), -1 * Math.log(0.5)]);
+        var result = losses.sparseCategoricalCrossentropy(target, x, false);
+        test_utils_1.expectTensorsClose(result, expected);
+    });
+});
+test_utils_1.describeMathCPUAndGPU('sigmoidCrossEntropyWithLogits', function () {
+    it('outputs sigmoid cross-entropy', function () {
+        var x = tfjs_core_1.tensor2d([[1, 2], [3, 4]], [2, 2]);
+        var target = tfjs_core_1.tensor2d([[0.25, 0.75], [0.1, 0.9]], [2, 2]);
+        var targetComplement = K.scalarPlusArray(tfjs_core_1.scalar(1), tfc.neg(target));
+        var sigmoidX = tfc.sigmoid(x);
+        var sigmoidXComplement = K.scalarPlusArray(tfjs_core_1.scalar(1), tfc.neg(sigmoidX));
+        var expected = tfc.add(tfc.mul(target, tfc.neg(tfc.log(sigmoidX))), tfc.mul(targetComplement, tfc.neg(tfc.log(sigmoidXComplement))));
+        var result = losses.sigmoidCrossEntropyWithLogits(target, x);
+        test_utils_1.expectTensorsClose(result, expected);
+    });
+});
 test_utils_1.describeMathCPUAndGPU('categoricalCrossentropy', function () {
     it('2D', function () {
         var yTrue = tfjs_core_1.tensor2d([[1, 0], [0, 1]], [2, 2]);
         var yPred = yTrue;
-        var expectedVal = tfjs_core_1.zeros([2]);
+        var expectedVal = tfc.zeros([2]);
         var result = losses.categoricalCrossentropy(yTrue, yPred);
         test_utils_1.expectTensorsClose(result, expectedVal);
     });
@@ -136,22 +194,23 @@ test_utils_1.describeMathCPUAndGPU('sparseCategoricalCrossentropy', function () 
     it('2D', function () {
         var yTrue = tfjs_core_1.tensor1d([0, 1]);
         var yPred = tfjs_core_1.tensor2d([[1, 0], [0, 1]], [2, 2]);
-        var expectedVal = tfjs_core_1.zeros([2]);
+        var expectedVal = tfc.zeros([2]);
         var result = losses.sparseCategoricalCrossentropy(yTrue, yPred);
         test_utils_1.expectTensorsClose(result, expectedVal);
     });
 });
 test_utils_1.describeMathCPUAndGPU('binaryCrossentropy', function () {
-    it('2D', function () {
-        var yTrue = tfjs_core_1.tensor2d([[1, 0], [1, 0]], [2, 2]);
-        var yPred = tfjs_core_1.tensor2d([[1, 2], [20, 10]], [2, 2]);
-        var crossEntropy = K.binaryCrossentropy(yTrue, yPred).dataSync();
-        var expectedVal = tfjs_core_1.tensor1d([
-            (crossEntropy[0] + crossEntropy[1]) / 2,
-            (crossEntropy[2] + crossEntropy[3]) / 2
-        ]);
-        var result = losses.binaryCrossentropy(yTrue, yPred);
-        test_utils_1.expectTensorsClose(result, expectedVal);
+    function _binaryCrossentropy(target, output) {
+        var targetComplement = K.scalarPlusArray(tfjs_core_1.scalar(1), tfc.neg(target));
+        var outputComplement = K.scalarPlusArray(tfjs_core_1.scalar(1), tfc.neg(output));
+        return tfc.mean(tfc.neg(tfc.add(tfc.mul(target, tfc.log(output)), tfc.mul(targetComplement, tfc.log(outputComplement)))), -1);
+    }
+    it('from sigmoid', function () {
+        var x = tfjs_core_1.tensor2d([[0.3, 0.7], [0.4, 0.6]], [2, 2]);
+        var target = tfjs_core_1.tensor2d([[0.25, 0.75], [0.1, 0.9]], [2, 2]);
+        var expected = _binaryCrossentropy(target, x);
+        var result = losses.binaryCrossentropy(target, x);
+        test_utils_1.expectTensorsClose(result, expected);
     });
 });
 test_utils_1.describeMathCPUAndGPU('kullbackLeiblerDivergence', function () {
@@ -214,6 +273,28 @@ describe('losses get', function () {
     it("get custom loss works", function () {
         var customLoss = function (x, y) { return tfjs_core_1.scalar(42.0); };
         expect(losses.get(customLoss)).toEqual(customLoss);
+    });
+});
+test_utils_1.describeMathCPUAndGPU('l2Normalize', function () {
+    it('normalizes with no axis defined.', function () {
+        var x = tfjs_core_1.tensor2d([[1, 2], [3, 4]], [2, 2]);
+        var norm = Math.sqrt(1 * 1 + 2 * 2 + 3 * 3 + 4 * 4);
+        var expected = tfjs_core_1.tensor2d([[1 / norm, 2 / norm], [3 / norm, 4 / norm]], [2, 2]);
+        var result = losses.l2Normalize(x);
+        test_utils_1.expectTensorsClose(result, expected);
+    });
+    it('normalizes along axis = -1.', function () {
+        var x = tfjs_core_1.tensor2d([[1, 2], [3, 4]], [2, 2]);
+        var firstNorm = Math.sqrt(1 * 1 + 2 * 2);
+        var secondNorm = Math.sqrt(3 * 3 + 4 * 4);
+        var expected = tfjs_core_1.tensor2d([[1 / firstNorm, 2 / firstNorm], [3 / secondNorm, 4 / secondNorm]], [2, 2]);
+        var result = losses.l2Normalize(x, -1);
+        test_utils_1.expectTensorsClose(result, expected);
+    });
+    it('normalizes with zeros.', function () {
+        var x = tfc.zeros([2, 2]);
+        var result = losses.l2Normalize(x);
+        test_utils_1.expectTensorsClose(result, x);
     });
 });
 //# sourceMappingURL=losses_test.js.map

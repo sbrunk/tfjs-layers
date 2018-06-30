@@ -36,6 +36,22 @@ test_utils_1.describeMathCPU('getOptimizer', function () {
         var optimizer = optimizers_1.getOptimizer('adagrad');
         expect(optimizer instanceof tfjs_core_1.AdagradOptimizer).toBe(true);
     });
+    it("can instantiate Adadelta", function () {
+        var optimizer = optimizers_1.getOptimizer('Adadelta');
+        expect(optimizer instanceof tfjs_core_1.AdadeltaOptimizer).toBe(true);
+    });
+    it("can instantiate adadelta", function () {
+        var optimizer = optimizers_1.getOptimizer('adadelta');
+        expect(optimizer instanceof tfjs_core_1.AdadeltaOptimizer).toBe(true);
+    });
+    it("can instantiate Adamax", function () {
+        var optimizer = optimizers_1.getOptimizer('Adamax');
+        expect(optimizer instanceof tfjs_core_1.AdamaxOptimizer).toBe(true);
+    });
+    it("can instantiate adamax", function () {
+        var optimizer = optimizers_1.getOptimizer('adamax');
+        expect(optimizer instanceof tfjs_core_1.AdamaxOptimizer).toBe(true);
+    });
     it('throws for non-existent optimizer', function () {
         expect(function () { return optimizers_1.getOptimizer('not an optimizer'); })
             .toThrowError(/Unknown Optimizer/);

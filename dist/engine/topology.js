@@ -287,7 +287,7 @@ var Layer = (function (_super) {
             if (spec == null) {
                 continue;
             }
-            var ndim = K.ndim(x);
+            var ndim = x.rank;
             if (spec.ndim != null) {
                 if (ndim !== spec.ndim) {
                     throw new errors_1.ValueError("Input " + inputIndex + " is incompatible with layer " + this.name + ": " +
@@ -434,6 +434,47 @@ var Layer = (function (_super) {
                 return output;
             }
         });
+    };
+    Object.defineProperty(Layer.prototype, "outputShape", {
+        get: function () {
+            if (this.inboundNodes == null || this.inboundNodes.length === 0) {
+                throw new errors_1.AttributeError("The layer " + this.name + " has never been called and thus has no " +
+                    "defined output shape.");
+            }
+            var allOutputShapes = [];
+            for (var _i = 0, _a = this.inboundNodes; _i < _a.length; _i++) {
+                var node = _a[_i];
+                var shapeString = JSON.stringify(node.outputShapes);
+                if (allOutputShapes.indexOf(shapeString) === -1) {
+                    allOutputShapes.push(shapeString);
+                }
+            }
+            if (allOutputShapes.length === 1) {
+                var outputShapes = this.inboundNodes[0].outputShapes;
+                if (Array.isArray(outputShapes) && Array.isArray(outputShapes[0]) &&
+                    outputShapes.length === 1) {
+                    return outputShapes[0];
+                }
+                else {
+                    return outputShapes;
+                }
+            }
+            else {
+                throw new errors_1.AttributeError("The layer " + this.name + " has multiple inbound nodes with different " +
+                    "output shapes. Hence the notion of \"outut shape\" is ill-defined " +
+                    "for the layer.");
+            }
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Layer.prototype.countParams = function () {
+        if (!this.built) {
+            throw new errors_1.RuntimeError("You tried to call countParams() on " + this.name + ", " +
+                "but the layer is not built yet. Build it first by calling " +
+                "build(batchInputShape).");
+        }
+        return generic_utils.countParamsInWeights(this.weights);
     };
     Layer.prototype.build = function (inputShape) {
         this.built = true;

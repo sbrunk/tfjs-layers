@@ -108,6 +108,8 @@ export declare abstract class Layer extends serialization.Serializable {
     setCallHook(callHook: CallHook): void;
     clearCallHook(): void;
     apply(inputs: Tensor | Tensor[] | SymbolicTensor | SymbolicTensor[], kwargs?: Kwargs): Tensor | Tensor[] | SymbolicTensor | SymbolicTensor[];
+    readonly outputShape: Shape | Shape[];
+    countParams(): number;
     build(inputShape: Shape | Shape[]): void;
     getWeights(trainableOnly?: boolean): Tensor[];
     setWeights(weights: Tensor[]): void;

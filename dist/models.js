@@ -98,7 +98,7 @@ function loadModelInternal(pathOrIOHandler) {
             if (typeof pathOrIOHandler === 'string') {
                 handlers = tfjs_core_1.io.getLoadHandlers(pathOrIOHandler);
                 if (handlers.length === 0) {
-                    return [2, loadModelFromPath(pathOrIOHandler)];
+                    handlers.push(tfjs_core_1.io.browserHTTPRequest(pathOrIOHandler));
                 }
                 else if (handlers.length > 1) {
                     throw new errors_1.ValueError("Found more than one (" + handlers.length + ") load handlers for " +
@@ -113,7 +113,7 @@ function loadModelInternal(pathOrIOHandler) {
 exports.loadModelInternal = loadModelInternal;
 function loadModelFromIOHandler(handler, customObjects) {
     return __awaiter(this, void 0, void 0, function () {
-        var artifacts, model, skipMismatch, isNamedTensorMap;
+        var artifacts, modelTopology, model, skipMismatch, isNamedTensorMap;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -124,7 +124,11 @@ function loadModelFromIOHandler(handler, customObjects) {
                     return [4, handler.load()];
                 case 1:
                     artifacts = _a.sent();
-                    model = serialization_1.deserialize(serialization_utils_1.convertPythonicToTs(artifacts.modelTopology), customObjects);
+                    modelTopology = artifacts.modelTopology;
+                    if (modelTopology['model_config'] != null) {
+                        modelTopology = modelTopology['model_config'];
+                    }
+                    model = serialization_1.deserialize(serialization_utils_1.convertPythonicToTs(modelTopology), customObjects);
                     if (artifacts.weightData != null) {
                         if (artifacts.weightSpecs == null) {
                             throw new errors_1.ValueError('Model artifacts contains weight data, but not weight specs. ' +
@@ -140,33 +144,6 @@ function loadModelFromIOHandler(handler, customObjects) {
     });
 }
 exports.loadModelFromIOHandler = loadModelFromIOHandler;
-function loadModelFromPath(modelConfigPath) {
-    return __awaiter(this, void 0, void 0, function () {
-        var modelConfigRequest, modelConfig;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
-                case 0: return [4, fetch(modelConfigPath)];
-                case 1:
-                    modelConfigRequest = _a.sent();
-                    return [4, modelConfigRequest.json()];
-                case 2:
-                    modelConfig = _a.sent();
-                    if (modelConfig['modelTopology'] == null) {
-                        throw new errors_1.ValueError('Missing field "modelTopology" from model JSON at path' +
-                            modelConfigPath);
-                    }
-                    if (modelConfig['weightsManifest'] == null) {
-                        throw new errors_1.ValueError('Missing field "weightsManifest" from model JSON at path' +
-                            modelConfigPath);
-                    }
-                    modelConfig.pathPrefix =
-                        modelConfigPath.substring(0, modelConfigPath.lastIndexOf('/'));
-                    return [2, modelFromJSON(modelConfig)];
-            }
-        });
-    });
-}
-exports.loadModelFromPath = loadModelFromPath;
 var Sequential = (function (_super) {
     __extends(Sequential, _super);
     function Sequential(config) {
@@ -186,6 +163,23 @@ var Sequential = (function (_super) {
     }
     Sequential_1 = Sequential;
     Sequential.prototype.add = function (layer) {
+        var isLayerModelInstance = layer instanceof Sequential_1 || layer instanceof training_1.Model;
+        var modelLayer;
+        if (isLayerModelInstance) {
+            modelLayer = layer;
+            if (modelLayer.outputs.length !== 1) {
+                throw new errors_1.ValueError('All layers in a Sequential model ' +
+                    'should have a single output tensor. ' +
+                    'For multi-output layers, ' +
+                    'use the functional API.');
+            }
+            if (modelLayer.inputs.length !== 1) {
+                throw new errors_1.ValueError('All layers in a Sequential model ' +
+                    'should have a single input tensor. ' +
+                    'For multi-input layers, ' +
+                    'use the functional API.');
+            }
+        }
         if (this.outputs.length === 0) {
             if (layer.inboundNodes.length === 0) {
                 if (layer.batchInputShape == null) {
@@ -199,20 +193,27 @@ var Sequential = (function (_super) {
                 });
                 layer.apply(x);
             }
-            if (layer.inboundNodes.length !== 1) {
-                throw new errors_1.ValueError('A layer added to a Sequential model must not already be ' +
-                    ("connected somewhere else. Model received layer " + layer.name + " ") +
-                    ("which has " + layer.inboundNodes.length + " pre-existing inbound ") +
-                    'connections.');
+            if (isLayerModelInstance) {
+                this.outputs = modelLayer.outputs;
+                this.inputs = modelLayer.inputs;
             }
-            if (layer.inboundNodes[0].outputTensors.length !== 1) {
-                throw new errors_1.ValueError('All layers in a Sequential model ' +
-                    'should have a single output tensor. ' +
-                    'For multi-output layers, ' +
-                    'use the functional API.');
+            else {
+                if (layer.inboundNodes.length !== 1) {
+                    throw new errors_1.ValueError('A layer added to a Sequential model must not already be ' +
+                        ("connected somewhere else. Model received layer " + layer.name + " ") +
+                        ("which has " + layer.inboundNodes.length + " pre-existing inbound ") +
+                        'connections.');
+                }
+                if (layer.inboundNodes[0].outputTensors.length !== 1) {
+                    throw new errors_1.ValueError('All layers in a Sequential model ' +
+                        'should have a single output tensor. ' +
+                        'For multi-output layers, ' +
+                        'use the functional API.');
+                }
+                this.outputs = [layer.inboundNodes[0].outputTensors[0]];
+                this.inputs = topology_1.getSourceInputs(this.outputs[0]);
             }
-            this.outputs = [layer.inboundNodes[0].outputTensors[0]];
-            this.inputs = topology_1.getSourceInputs(this.outputs[0]);
+            this.inboundNodes = [];
             new topology_1.Node({
                 outboundLayer: this,
                 inboundLayers: [],
@@ -266,6 +267,7 @@ var Sequential = (function (_super) {
         return this.model.call(inputs, kwargs);
     };
     Sequential.prototype.build = function (inputShape) {
+        generic_utils.getExactlyOneShape(inputShape);
         if (this.inputs.length === 0 || this.outputs.length === 0) {
             throw new TypeError('Sequential model cannot be built: model is empty.' +
                 ' Add some layers first.');
@@ -289,6 +291,19 @@ var Sequential = (function (_super) {
         this.outputNames = this.model.outputNames;
         this.inputNames = this.model.inputNames;
         this.built = true;
+    };
+    Sequential.prototype.countParams = function () {
+        if (!this.built) {
+            this.build();
+        }
+        return _super.prototype.countParams.call(this);
+    };
+    Sequential.prototype.summary = function (lineLength, positions, printFn) {
+        if (printFn === void 0) { printFn = console.log; }
+        if (!this.built) {
+            this.build();
+        }
+        _super.prototype.summary.call(this, lineLength, positions, printFn);
     };
     Sequential.prototype.setWeights = function (weights) {
         if (this.model == null) {
@@ -383,6 +398,9 @@ var Sequential = (function (_super) {
     __decorate([
         tfjs_core_1.doc({ heading: 'Models', subheading: 'Classes' })
     ], Sequential.prototype, "add", null);
+    __decorate([
+        tfjs_core_1.doc({ heading: 'Models', subheading: 'Classes' })
+    ], Sequential.prototype, "summary", null);
     __decorate([
         tfjs_core_1.doc({ heading: 'Models', subheading: 'Classes', configParamIndices: [2] })
     ], Sequential.prototype, "evaluate", null);

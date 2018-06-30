@@ -285,4 +285,27 @@ function checkStringTypeUnionValue(values, label, value) {
     }
 }
 exports.checkStringTypeUnionValue = checkStringTypeUnionValue;
+function checkArrayTypeAndLength(x, expectedType, minLength, maxLength) {
+    if (minLength === void 0) { minLength = 0; }
+    if (maxLength === void 0) { maxLength = Infinity; }
+    assert(minLength >= 0);
+    assert(maxLength >= minLength);
+    return (Array.isArray(x) && x.length >= minLength && x.length <= maxLength &&
+        x.every(function (e) { return typeof e === expectedType; }));
+}
+exports.checkArrayTypeAndLength = checkArrayTypeAndLength;
+function countParamsInWeights(weights) {
+    var count = 0;
+    for (var _i = 0, weights_1 = weights; _i < weights_1.length; _i++) {
+        var weight = weights_1[_i];
+        if (weight.shape.length === 0) {
+            count += 1;
+        }
+        else {
+            count += weight.shape.reduce(function (a, b) { return a * b; });
+        }
+    }
+    return count;
+}
+exports.countParamsInWeights = countParamsInWeights;
 //# sourceMappingURL=generic_utils.js.map

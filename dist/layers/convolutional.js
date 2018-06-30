@@ -98,13 +98,13 @@ function conv2dWithBias(x, kernel, bias, strides, padding, dataFormat, dilationR
             dataFormat = common_1.imageDataFormat();
         }
         common_2.checkDataFormat(dataFormat);
-        if (K.ndim(x) !== 3 && K.ndim(x) !== 4) {
+        if (x.rank !== 3 && x.rank !== 4) {
             throw new errors_1.ValueError("conv2dWithBias expects input to be of rank 3 or 4, but received " +
-                (K.ndim(x) + "."));
+                (x.rank + "."));
         }
-        if (K.ndim(kernel) !== 3 && K.ndim(kernel) !== 4) {
+        if (kernel.rank !== 3 && kernel.rank !== 4) {
             throw new errors_1.ValueError("conv2dWithBias expects kernel to be of rank 3 or 4, but received " +
-                (K.ndim(x) + "."));
+                (x.rank + "."));
         }
         var y = preprocessConv2DInput(x, dataFormat);
         if (padding === 'causal') {
@@ -122,20 +122,19 @@ function conv2dWithBias(x, kernel, bias, strides, padding, dataFormat, dilationR
     });
 }
 exports.conv2dWithBias = conv2dWithBias;
-var Conv = (function (_super) {
-    __extends(Conv, _super);
-    function Conv(rank, config) {
+var BaseConv = (function (_super) {
+    __extends(BaseConv, _super);
+    function BaseConv(rank, config) {
         var _this = _super.call(this, config) || this;
-        _this.kernel = null;
         _this.bias = null;
         _this.DEFAULT_KERNEL_INITIALIZER = 'glorotNormal';
         _this.DEFAULT_BIAS_INITIALIZER = 'zeros';
+        BaseConv.verifyConfig(config);
         _this.rank = rank;
         if (_this.rank !== 1 && _this.rank !== 2) {
             throw new errors_1.NotImplementedError("Convolution layer for rank other than 1 or 2 (" + _this.rank + ") is " +
                 "not implemented yet.");
         }
-        _this.filters = config.filters;
         _this.kernelSize = conv_utils_1.normalizeArray(config.kernelSize, rank, 'kernelSize');
         _this.strides = conv_utils_1.normalizeArray(config.strides == null ? 1 : config.strides, rank, 'strides');
         _this.padding = config.padding == null ? 'valid' : config.padding;
@@ -143,6 +142,13 @@ var Conv = (function (_super) {
         _this.dataFormat =
             config.dataFormat == null ? 'channelsLast' : config.dataFormat;
         common_2.checkDataFormat(_this.dataFormat);
+        _this.activation = activations_1.getActivation(config.activation);
+        _this.useBias = config.useBias == null ? true : config.useBias;
+        _this.biasInitializer =
+            initializers_1.getInitializer(config.biasInitializer || _this.DEFAULT_BIAS_INITIALIZER);
+        _this.biasConstraint = constraints_1.getConstraint(config.biasConstraint);
+        _this.biasRegularizer = regularizers_1.getRegularizer(config.biasRegularizer);
+        _this.activityRegularizer = regularizers_1.getRegularizer(config.activityRegularizer);
         _this.dilationRate = config.dilationRate == null ? 1 : config.dilationRate;
         if (_this.rank === 1 &&
             (Array.isArray(_this.dilationRate) &&
@@ -160,16 +166,28 @@ var Conv = (function (_super) {
                     ("convolution, but received " + JSON.stringify(_this.dilationRate)));
             }
         }
-        _this.activation = activations_1.getActivation(config.activation);
-        _this.useBias = config.useBias == null ? true : config.useBias;
+        return _this;
+    }
+    BaseConv.verifyConfig = function (config) {
+        generic_utils.assert('kernelSize' in config, "required key 'kernelSize' not in config");
+        if (typeof config.kernelSize !== 'number' &&
+            !generic_utils.checkArrayTypeAndLength(config.kernelSize, 'number', 1, 2))
+            throw new errors_1.ValueError("BaseConv expects config.kernelSize to be number or number[] with " +
+                ("length 1 or 2, but received " + JSON.stringify(config.kernelSize) + "."));
+    };
+    return BaseConv;
+}(topology_1.Layer));
+exports.BaseConv = BaseConv;
+var Conv = (function (_super) {
+    __extends(Conv, _super);
+    function Conv(rank, config) {
+        var _this = _super.call(this, rank, config) || this;
+        _this.kernel = null;
+        Conv.verifyConfig(config);
+        _this.filters = config.filters;
         _this.kernelInitializer = initializers_1.getInitializer(config.kernelInitializer || _this.DEFAULT_KERNEL_INITIALIZER);
-        _this.biasInitializer =
-            initializers_1.getInitializer(config.biasInitializer || _this.DEFAULT_BIAS_INITIALIZER);
         _this.kernelConstraint = constraints_1.getConstraint(config.kernelConstraint);
-        _this.biasConstraint = constraints_1.getConstraint(config.biasConstraint);
         _this.kernelRegularizer = regularizers_1.getRegularizer(config.kernelRegularizer);
-        _this.biasRegularizer = regularizers_1.getRegularizer(config.biasRegularizer);
-        _this.activityRegularizer = regularizers_1.getRegularizer(config.activityRegularizer);
         return _this;
     }
     Conv.prototype.build = function (inputShape) {
@@ -255,18 +273,33 @@ var Conv = (function (_super) {
         Object.assign(config, baseConfig);
         return config;
     };
+    Conv.verifyConfig = function (config) {
+        if (!('filters' in config) || typeof config.filters !== 'number' ||
+            config.filters < 1) {
+            throw new errors_1.ValueError("Convolution layer expected config.filters to be a 'number' > 0 " +
+                ("but got " + JSON.stringify(config.filters)));
+        }
+    };
     return Conv;
-}(topology_1.Layer));
+}(BaseConv));
 exports.Conv = Conv;
 var Conv2D = (function (_super) {
     __extends(Conv2D, _super);
     function Conv2D(config) {
-        return _super.call(this, 2, config) || this;
+        var _this = _super.call(this, 2, config) || this;
+        Conv2D.verifyConfig(config);
+        return _this;
     }
     Conv2D.prototype.getConfig = function () {
         var config = _super.prototype.getConfig.call(this);
         delete config['rank'];
         return config;
+    };
+    Conv2D.verifyConfig = function (config) {
+        if ((typeof config.kernelSize !== 'number') &&
+            !generic_utils.checkArrayTypeAndLength(config.kernelSize, 'number', 1, 2))
+            throw new errors_1.ValueError("Conv2D expects config.kernelSize to be number or number[] with " +
+                ("length 1 or 2, but received " + JSON.stringify(config.kernelSize) + "."));
     };
     Conv2D.className = 'Conv2D';
     return Conv2D;
@@ -520,6 +553,7 @@ var Conv1D = (function (_super) {
     __extends(Conv1D, _super);
     function Conv1D(config) {
         var _this = _super.call(this, 1, config) || this;
+        Conv1D.verifyConfig(config);
         _this.inputSpec = [{ ndim: 3 }];
         return _this;
     }
@@ -528,6 +562,12 @@ var Conv1D = (function (_super) {
         delete config['rank'];
         delete config['dataFormat'];
         return config;
+    };
+    Conv1D.verifyConfig = function (config) {
+        if (typeof config.kernelSize !== 'number' &&
+            !generic_utils.checkArrayTypeAndLength(config.kernelSize, 'number', 1, 1))
+            throw new errors_1.ValueError("Conv1D expects config.kernelSize to be number or number[] with " +
+                ("length 1, but received " + JSON.stringify(config.kernelSize) + "."));
     };
     Conv1D.className = 'Conv1D';
     return Conv1D;
@@ -593,4 +633,57 @@ var Cropping2D = (function (_super) {
 }(topology_1.Layer));
 exports.Cropping2D = Cropping2D;
 tfjs_core_1.serialization.SerializationMap.register(Cropping2D);
+var UpSampling2D = (function (_super) {
+    __extends(UpSampling2D, _super);
+    function UpSampling2D(config) {
+        var _this = _super.call(this, config) || this;
+        _this.DEFAULT_SIZE = [2, 2];
+        _this.inputSpec = [{ ndim: 4 }];
+        _this.size = config.size === undefined ? _this.DEFAULT_SIZE : config.size;
+        _this.dataFormat =
+            config.dataFormat === undefined ? 'channelsLast' : config.dataFormat;
+        return _this;
+    }
+    UpSampling2D.prototype.computeOutputShape = function (inputShape) {
+        if (this.dataFormat === 'channelsFirst') {
+            var height = this.size[0] * inputShape[2];
+            var width = this.size[1] * inputShape[3];
+            return [inputShape[0], inputShape[1], height, width];
+        }
+        else {
+            var height = this.size[0] * inputShape[1];
+            var width = this.size[1] * inputShape[2];
+            return [inputShape[0], height, width, inputShape[3]];
+        }
+    };
+    UpSampling2D.prototype.call = function (inputs, kwargs) {
+        var _this = this;
+        return tfc.tidy(function () {
+            var input = generic_utils.getExactlyOneTensor(inputs);
+            var inputShape = input.shape;
+            if (_this.dataFormat === 'channelsFirst') {
+                input = tfc.transpose(input, [0, 2, 3, 1]);
+                var height = _this.size[0] * inputShape[2];
+                var width = _this.size[1] * inputShape[3];
+                var resized = input.resizeNearestNeighbor([height, width]);
+                return tfc.transpose(resized, [0, 3, 1, 2]);
+            }
+            else {
+                var height = _this.size[0] * inputShape[1];
+                var width = _this.size[1] * inputShape[2];
+                return input.resizeNearestNeighbor([height, width]);
+            }
+        });
+    };
+    UpSampling2D.prototype.getConfig = function () {
+        var config = { size: this.size, dataFormat: this.dataFormat };
+        var baseConfig = _super.prototype.getConfig.call(this);
+        Object.assign(config, baseConfig);
+        return config;
+    };
+    UpSampling2D.className = 'UpSampling2D';
+    return UpSampling2D;
+}(topology_1.Layer));
+exports.UpSampling2D = UpSampling2D;
+tfjs_core_1.serialization.SerializationMap.register(UpSampling2D);
 //# sourceMappingURL=convolutional.js.map

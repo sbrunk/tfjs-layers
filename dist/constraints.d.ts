@@ -53,9 +53,10 @@ export declare class MinMaxNorm extends Constraint {
     getConfig(): serialization.ConfigDict;
 }
 export declare type ConstraintIdentifier = 'maxNorm' | 'minMaxNorm' | 'nonNeg' | 'unitNorm' | string;
-// export declare const CONSTRAINT_IDENTIFIER_REGISTRY_SYMBOL_MAP: {
-//     [identifier in ConstraintIdentifier]: string;
-// };
+export declare const CONSTRAINT_IDENTIFIER_REGISTRY_SYMBOL_MAP: {
+    //[identifier in ConstraintIdentifier]: string;
+    string: string;
+};
 export declare function serializeConstraint(constraint: Constraint): serialization.ConfigDictValue;
 export declare function deserializeConstraint(config: serialization.ConfigDict, customObjects?: serialization.ConfigDict): Constraint;
 export declare function getConstraint(identifier: ConstraintIdentifier | serialization.ConfigDict | Constraint): Constraint;
